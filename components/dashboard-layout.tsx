@@ -249,7 +249,7 @@ function DashboardContent({
               <Link href={`/dashboard/${role}`} className="hover:underline flex items-center">
                 Dashboard
               </Link>
-              <Button onClick={handleLogout} variant="outline" asChild>
+              <Button onClick={handleLogout} variant="outline">
                 
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
