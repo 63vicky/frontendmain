@@ -32,7 +32,7 @@ const login = async (req, res) => {
       httpOnly: true,
   secure: true,
   sameSite: 'none', // <--- important for cross-site
-  domain: '.vercel.app',
+  domain: '.onrender.com',
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
 
