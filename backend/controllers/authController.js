@@ -30,8 +30,6 @@ const login = async (req, res) => {
     // Set token in cookie
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-     
   secure: true,
   sameSite: 'none', // <--- important for cross-site
   domain: '.vercel.app',
