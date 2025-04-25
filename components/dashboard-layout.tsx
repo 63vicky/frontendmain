@@ -29,6 +29,7 @@ import {
   LogOut,
   History,
 } from "lucide-react"
+import { authService } from "@/lib/services/auth"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -225,6 +226,10 @@ function DashboardContent({
     return isSamePath
   }
 
+  const handleLogout = () => {
+    authService.logout();
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4 shadow-md">
@@ -244,7 +249,7 @@ function DashboardContent({
               <Link href={`/dashboard/${role}`} className="hover:underline flex items-center">
                 Dashboard
               </Link>
-              <Button variant="outline" asChild>
+              <Button onClick={handleLogout} variant="outline" asChild>
                 <Link href="/login" className="text-foreground ">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
