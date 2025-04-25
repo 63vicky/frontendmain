@@ -34,7 +34,7 @@ const login = async (req, res) => {
      
   secure: true,
   sameSite: 'none', // <--- important for cross-site
-  domain: '.onrender.com',
+  domain: '.vercel.app',
       maxAge: 24 * 60 * 60 * 1000 // 1 day
     });
 

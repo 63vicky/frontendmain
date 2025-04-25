@@ -174,7 +174,7 @@ async function seedDemoResults() {
 }
 
 // Uncomment to run the seeding script
-seedDemoUsers();
+// seedDemoUsers();
 // seedDemoExams();
 // seedDemoResults();
 
