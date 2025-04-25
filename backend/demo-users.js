@@ -1,8 +1,9 @@
+const dotenv = require('dotenv');
 // In-memory data store
 const users = [
   // Principal
   {
-    id: 1,
+    
     name: 'Principal John Doe',
     email: 'principal@example.com',
     password: 'principal123',
@@ -11,7 +12,7 @@ const users = [
   },
   // Teachers
   {
-    id: 2,
+    
     name: 'Math Teacher',
     email: 'math.teacher@example.com',
     password: 'teacher123',
@@ -21,7 +22,7 @@ const users = [
     status: 'active'
   },
   {
-    id: 3,
+    
     name: 'Science Teacher',
     email: 'science.teacher@example.com',
     password: 'teacher123',
@@ -31,7 +32,7 @@ const users = [
     status: 'active'
   },
   {
-    id: 4,
+    
     name: 'English Teacher',
     email: 'english.teacher@example.com',
     password: 'teacher123',
@@ -42,7 +43,7 @@ const users = [
   },
   // Students
   {
-    id: 5,
+    
     name: 'Student Alice',
     email: 'alice.student@example.com',
     password: 'student123',
@@ -52,7 +53,7 @@ const users = [
     status: 'active'
   },
   {
-    id: 6,
+    
     name: 'Student Bob',
     email: 'bob.student@example.com',
     password: 'student123',
@@ -62,7 +63,7 @@ const users = [
     status: 'active'
   },
   {
-    id: 7,
+    
     name: 'Student Carol',
     email: 'carol.student@example.com',
     password: 'student123',
@@ -75,7 +76,7 @@ const users = [
 
 const exams = [
   {
-    id: 1,
+    
     title: 'Mathematics Midterm',
     subject: 'Mathematics',
     class: '10A',
@@ -84,7 +85,7 @@ const exams = [
     createdBy: 2
   },
   {
-    id: 2,
+   
     title: 'Science Quiz',
     subject: 'Science',
     class: '9A',
@@ -93,7 +94,7 @@ const exams = [
     createdBy: 3
   },
   {
-    id: 3,
+    
     title: 'English Final',
     subject: 'English',
     class: '11A',
@@ -105,7 +106,7 @@ const exams = [
 
 const results = [
   {
-    id: 1,
+    
     examId: 1,
     studentId: 5,
     marks: 85,
@@ -113,7 +114,7 @@ const results = [
     feedback: 'Excellent performance'
   },
   {
-    id: 2,
+    
     examId: 1,
     studentId: 6,
     marks: 75,
@@ -121,7 +122,7 @@ const results = [
     feedback: 'Good work'
   },
   {
-    id: 3,
+   
     examId: 2,
     studentId: 7,
     marks: 90,
@@ -129,5 +130,52 @@ const results = [
     feedback: 'Outstanding performance'
   }
 ];
+
+// Example usage: Insert into MongoDB (if using Mongoose)
+const mongoose = require('mongoose');
+const User = require('./models/User'); // Adjust path as needed
+const Exam = require('./models/Exam'); // Adjust path as needed
+const Result = require('./models/Result'); // Adjust path as needed
+dotenv.config();
+async function seedDemoUsers() {
+  await mongoose.connect(process.env.MONGODB_URI);
+  await User.deleteMany({});
+  for (const user of users) {
+    const newUser = new User(user);
+    await newUser.save();
+  }
+  console.log('Demo users seeded!');
+
+  mongoose.disconnect();
+}
+
+async function seedDemoExams() {
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/exam-system');
+  await Exam.deleteMany({});
+  for (const exam of exams) {
+    const newExam = new Exam(exam);
+    await newExam.save();
+  }
+  console.log('Demo exams seeded!');
+
+  mongoose.disconnect();
+}
+
+async function seedDemoResults() {
+  await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/exam-system');
+  await Result.deleteMany({});
+  for (const result of results) {
+    const newResult = new Result(result);
+    await newResult.save();
+  }
+  console.log('Demo results seeded!');
+
+  mongoose.disconnect();
+}
+
+// Uncomment to run the seeding script
+seedDemoUsers();
+// seedDemoExams();
+// seedDemoResults();
 
 module.exports = { users, exams, results }; 
