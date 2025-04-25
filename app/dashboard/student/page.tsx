@@ -11,7 +11,7 @@ import { Suspense, useEffect, useState } from "react"
 
 export default function TeacherDashboard() {
   return (
-    <Suspense>
+    <Suspense fallback={<div>Loading...</div>}>
       <StudentDashboardConent />
     </Suspense>
   )

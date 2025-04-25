@@ -17,7 +17,7 @@ import { useSearchParams, useRouter } from "next/navigation"
 
 export default function TeacherDashboard() {
   return (
-    <Suspense>
+    <Suspense fallback={<div>Loading...</div>}>
       <TeacherDashboardContent />
     </Suspense>
   )

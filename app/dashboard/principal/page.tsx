@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import DashboardLayout from "@/components/dashboard-layout"
@@ -9,6 +9,14 @@ import ExamAnalytics from "@/components/exam-analytics"
 import { useSearchParams, useRouter } from "next/navigation"
 
 export default function PrincipalDashboard() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <PrincipalDashboardContent />
+    </Suspense>
+  )
+}
+
+function PrincipalDashboardContent() {
   const [activeTab, setActiveTab] = useState("overview")
   const searchParams = useSearchParams()
   const router = useRouter()

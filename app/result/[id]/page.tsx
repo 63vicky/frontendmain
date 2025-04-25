@@ -8,8 +8,19 @@ import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Trophy, Award, Star, Clock, BarChart2, BookOpen, Download, Printer, Share2 } from "lucide-react"
+import { Suspense } from "react"
 
 export default function ResultPage({ params }: { params: { id: string } }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+      <Suspense fallback={<div>Loading...</div>}>
+        <ResultContent params={params} />
+      </Suspense>
+    </div>
+  )
+}
+
+function ResultContent({ params }: { params: { id: string } }) {
   const searchParams = useSearchParams()
   const score = Number.parseInt(searchParams.get("score") || "0")
   const correct = Number.parseInt(searchParams.get("correct") || "0")

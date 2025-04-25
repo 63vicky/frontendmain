@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -37,7 +37,6 @@ interface DashboardLayoutProps {
 export default function DashboardLayout({ children, role }: DashboardLayoutProps) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const pathname = usePathname()
-  const searchParams = useSearchParams()
   const router = useRouter()
 
   // Close mobile menu when path changes
@@ -49,6 +48,37 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
     router.back()
   }
 
+  return (
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+      <Suspense fallback={<div>Loading...</div>}>
+        <DashboardContent 
+          children={children} 
+          role={role} 
+          isMobileMenuOpen={isMobileMenuOpen} 
+          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          pathname={pathname}
+          handleGoBack={handleGoBack}
+        />
+      </Suspense>
+    </div>
+  )
+}
+
+function DashboardContent({ 
+  children, 
+  role, 
+  isMobileMenuOpen, 
+  setIsMobileMenuOpen,
+  pathname,
+  handleGoBack
+}: DashboardLayoutProps & { 
+  isMobileMenuOpen: boolean; 
+  setIsMobileMenuOpen: (value: boolean) => void;
+  pathname: string;
+  handleGoBack: () => void;
+}) {
+  const searchParams = useSearchParams()
+  
   const getNavItems = (role: string) => {
     const baseItems = [
       {
@@ -193,7 +223,7 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+    <>
       <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4 shadow-md">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center">
@@ -264,40 +294,9 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
         </div>
       )}
 
-      <div className="flex flex-1">
-        <aside className="w-64 bg-white dark:bg-slate-800 border-r dark:border-slate-700 hidden md:block shadow-sm">
-          <div className="p-4">
-            <div className="mb-6">
-              <div className="text-xs uppercase text-indigo-500 dark:text-indigo-400 font-semibold tracking-wider mb-2">
-                {role.charAt(0).toUpperCase() + role.slice(1)} Dashboard
-              </div>
-            </div>
-            <nav className="space-y-1">
-              {navItems.map((item, index) => (
-                <Link
-                  key={index}
-                  href={item.href}
-                  className={`flex items-center px-3 py-2.5 rounded-lg transition-colors ${
-                    isActive(item.href)
-                      ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-900 dark:text-indigo-100 font-medium"
-                      : "text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 hover:text-indigo-900 dark:hover:text-indigo-100"
-                  }`}
-                >
-                  <span className={`mr-3 ${isActive(item.href) ? "text-indigo-600 dark:text-indigo-400" : ""}`}>
-                    {item.icon}
-                  </span>
-                  <span>{item.name}</span>
-                  {isActive(item.href) && (
-                    <ChevronRight className="ml-auto h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                  )}
-                </Link>
-              ))}
-            </nav>
-          </div>
-        </aside>
-
-        <main className="flex-1 p-6 bg-slate-50 dark:bg-slate-900 max-w-[100vw] overflow-auto">{children}</main>
-      </div>
-    </div>
+      <main className="flex-1 container mx-auto px-4 py-8">
+        {children}
+      </main>
+    </>
   )
 }
