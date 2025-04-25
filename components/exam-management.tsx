@@ -1,98 +1,151 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
+import { useRouter } from "next/navigation"
+import { Exam, Question } from "@/lib/types"
+import { examService } from "@/lib/services/exam"
+import { authService } from "@/lib/services/auth"
 
 export default function ExamManagement() {
+  const router = useRouter()
+  const [exams, setExams] = useState<Exam[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
 
-  // Mock data
-  const activeExams = [
-    {
-      id: 1,
-      title: "Mathematics - Chapter 3",
-      subject: "Mathematics",
-      class: "Class 8",
-      startDate: "Apr 25, 2025",
-      endDate: "May 2, 2025",
-      attempts: { current: 12, max: 5 * 20 }, // 20 students with 5 attempts each
-      status: "Active",
-    },
-    {
-      id: 2,
-      title: "Science - Quiz 4",
-      subject: "Science",
-      class: "Class 8",
-      startDate: "Apr 28, 2025",
-      endDate: "May 5, 2025",
-      attempts: { current: 8, max: 5 * 20 },
-      status: "Active",
-    },
-    {
-      id: 3,
-      title: "English - Grammar Test",
-      subject: "English",
-      class: "Class 8",
-      startDate: "May 1, 2025",
-      endDate: "May 8, 2025",
-      attempts: { current: 0, max: 5 * 20 },
-      status: "Scheduled",
-    },
-  ]
+  useEffect(() => {
+    const user = authService.getCurrentUser()
+    if (!user || user.role !== "teacher") {
+      router.push("/login")
+      return
+    }
 
-  const completedExams = [
-    {
-      id: 4,
-      title: "Mathematics - Chapter 2",
-      subject: "Mathematics",
-      class: "Class 8",
-      startDate: "Apr 10, 2025",
-      endDate: "Apr 17, 2025",
-      attempts: { current: 87, max: 5 * 20 },
-      avgScore: 76,
-      status: "Completed",
-    },
-    {
-      id: 5,
-      title: "Science - Quiz 3",
-      subject: "Science",
-      class: "Class 8",
-      startDate: "Apr 5, 2025",
-      endDate: "Apr 12, 2025",
-      attempts: { current: 92, max: 5 * 20 },
-      avgScore: 82,
-      status: "Completed",
-    },
-    {
-      id: 6,
-      title: "English - Vocabulary Test",
-      subject: "English",
-      class: "Class 8",
-      startDate: "Mar 25, 2025",
-      endDate: "Apr 1, 2025",
-      attempts: { current: 85, max: 5 * 20 },
-      avgScore: 79,
-      status: "Completed",
-    },
-  ]
+    loadExams()
+  }, [router])
+
+  const loadExams = async () => {
+    try {
+      setLoading(true)
+      const data = await examService.getExams()
+      setExams(data)
+    } catch (err) {
+      setError("Failed to load exams")
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateExam = async (examData: Partial<Exam>) => {
+    try {
+      const newExam = await examService.createExam(examData)
+      setExams([...exams, newExam])
+    } catch (err) {
+      setError("Failed to create exam")
+      console.error(err)
+    }
+  }
+
+  const handleUpdateExam = async (id: string, examData: Partial<Exam>) => {
+    try {
+      const updatedExam = await examService.updateExam(id, examData)
+      setExams(exams.map(exam => exam._id === id ? updatedExam : exam))
+    } catch (err) {
+      setError("Failed to update exam")
+      console.error(err)
+    }
+  }
+
+  const handleDeleteExam = async (id: string) => {
+    try {
+      await examService.deleteExam(id)
+      setExams(exams.filter(exam => exam._id !== id))
+    } catch (err) {
+      setError("Failed to delete exam")
+      console.error(err)
+    }
+  }
+
+  const handleCreateQuestion = async (examId: string, questionData: Partial<Question>) => {
+    try {
+      const newQuestion = await examService.createQuestion({
+        ...questionData,
+        examId
+      })
+      const updatedExams = exams.map(exam => {
+        if (exam._id === examId) {
+          return {
+            ...exam,
+            questions: [...(exam.questions || []), newQuestion]
+          }
+        }
+        return exam
+      })
+      setExams(updatedExams)
+    } catch (err) {
+      setError("Failed to create question")
+      console.error(err)
+    }
+  }
+
+  const handleUpdateQuestion = async (examId: string, questionId: string, questionData: Partial<Question>) => {
+    try {
+      const updatedQuestion = await examService.updateQuestion(questionId, questionData)
+      const updatedExams = exams.map(exam => {
+        if (exam._id === examId) {
+          return {
+            ...exam,
+            questions: exam.questions?.map(q => q._id === questionId ? updatedQuestion : q)
+          }
+        }
+        return exam
+      })
+      setExams(updatedExams)
+    } catch (err) {
+      setError("Failed to update question")
+      console.error(err)
+    }
+  }
+
+  const handleDeleteQuestion = async (examId: string, questionId: string) => {
+    try {
+      await examService.deleteQuestion(questionId)
+      const updatedExams = exams.map(exam => {
+        if (exam._id === examId) {
+          return {
+            ...exam,
+            questions: exam.questions?.filter(q => q._id !== questionId)
+          }
+        }
+        return exam
+      })
+      setExams(updatedExams)
+    } catch (err) {
+      setError("Failed to delete question")
+      console.error(err)
+    }
+  }
 
   // Filter exams based on search query
-  const filteredActiveExams = activeExams.filter(
+  const filteredExams = exams.filter(
     (exam) =>
       exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       exam.subject.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
-  const filteredCompletedExams = completedExams.filter(
-    (exam) =>
-      exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      exam.subject.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  if (loading) {
+    return <div>Loading...</div>
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>
+  }
 
   return (
     <Card>
@@ -122,12 +175,12 @@ export default function ExamManagement() {
           </TabsList>
 
           <TabsContent value="active" className="space-y-4 pt-4">
-            {filteredActiveExams.length === 0 ? (
+            {filteredExams.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">No active exams found</div>
             ) : (
-              filteredActiveExams.map((exam) => (
+              filteredExams.map((exam) => (
                 <div
-                  key={exam.id}
+                  key={exam._id}
                   className="flex flex-col md:flex-row md:items-center justify-between border rounded-lg p-4"
                 >
                   <div className="space-y-1 mb-4 md:mb-0">
@@ -147,10 +200,10 @@ export default function ExamManagement() {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/exam/${exam.id}/edit`}>Edit</Link>
+                      <Link href={`/exam/${exam._id}/edit`}>Edit</Link>
                     </Button>
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/exam/${exam.id}/results`}>View Results</Link>
+                      <Link href={`/exam/${exam._id}/results`}>View Results</Link>
                     </Button>
                     <Button variant="outline" size="sm" className="text-red-500">
                       Deactivate
@@ -162,12 +215,12 @@ export default function ExamManagement() {
           </TabsContent>
 
           <TabsContent value="completed" className="space-y-4 pt-4">
-            {filteredCompletedExams.length === 0 ? (
+            {exams.length === 0 ? (
               <div className="text-center py-8 text-muted-foreground">No completed exams found</div>
             ) : (
-              filteredCompletedExams.map((exam) => (
+              exams.map((exam) => (
                 <div
-                  key={exam.id}
+                  key={exam._id}
                   className="flex flex-col md:flex-row md:items-center justify-between border rounded-lg p-4"
                 >
                   <div className="space-y-1 mb-4 md:mb-0">
@@ -187,10 +240,10 @@ export default function ExamManagement() {
                   </div>
                   <div className="flex flex-col sm:flex-row gap-2">
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/exam/${exam.id}/results`}>View Results</Link>
+                      <Link href={`/exam/${exam._id}/results`}>View Results</Link>
                     </Button>
                     <Button variant="outline" size="sm" asChild>
-                      <Link href={`/exam/${exam.id}/duplicate`}>Duplicate</Link>
+                      <Link href={`/exam/${exam._id}/duplicate`}>Duplicate</Link>
                     </Button>
                     <Button variant="outline" size="sm" className="text-red-500">
                       Archive

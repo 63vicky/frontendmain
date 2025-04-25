@@ -7,6 +7,7 @@ import Link from "next/link"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { AuthCheck } from "@/components/auth-check"
 import {
   LayoutDashboard,
   Users,
@@ -49,18 +50,20 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
-      <Suspense fallback={<div>Loading...</div>}>
-        <DashboardContent 
-          children={children} 
-          role={role} 
-          isMobileMenuOpen={isMobileMenuOpen} 
-          setIsMobileMenuOpen={setIsMobileMenuOpen}
-          pathname={pathname}
-          handleGoBack={handleGoBack}
-        />
-      </Suspense>
-    </div>
+    <AuthCheck requiredRole={role}>
+      <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
+        <Suspense fallback={<div>Loading...</div>}>
+          <DashboardContent 
+            children={children} 
+            role={role} 
+            isMobileMenuOpen={isMobileMenuOpen} 
+            setIsMobileMenuOpen={setIsMobileMenuOpen}
+            pathname={pathname}
+            handleGoBack={handleGoBack}
+          />
+        </Suspense>
+      </div>
+    </AuthCheck>
   )
 }
 
@@ -225,7 +228,7 @@ function DashboardContent({
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
       <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4 shadow-md">
-        <div className="container mx-auto px-4 flex justify-between items-center">
+        <div className="mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold flex items-center">
               <span className="bg-white dark:bg-indigo-200 text-indigo-800 rounded-lg p-1 mr-2">TA</span>

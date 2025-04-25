@@ -29,78 +29,78 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
   const users =
     userType === "teacher"
       ? [
-          {
-            id: 1,
-            name: "John Smith",
-            email: "john.smith@example.com",
-            subject: "Mathematics",
-            classes: "8A, 9B, 10C",
-            status: "Active",
-          },
-          {
-            id: 2,
-            name: "Sarah Johnson",
-            email: "sarah.johnson@example.com",
-            subject: "Science",
-            classes: "7A, 8B, 9A",
-            status: "Active",
-          },
-          {
-            id: 3,
-            name: "Michael Brown",
-            email: "michael.brown@example.com",
-            subject: "English",
-            classes: "10A, 10B, 10C",
-            status: "Active",
-          },
-          {
-            id: 4,
-            name: "Emily Davis",
-            email: "emily.davis@example.com",
-            subject: "History",
-            classes: "8A, 9A, 9C",
-            status: "Active",
-          },
-          {
-            id: 5,
-            name: "David Wilson",
-            email: "david.wilson@example.com",
-            subject: "Geography",
-            classes: "7B, 8C, 9B",
-            status: "Inactive",
-          },
-        ]
+        {
+          id: 1,
+          name: "John Smith",
+          email: "john.smith@example.com",
+          subject: "Mathematics",
+          classes: "8A, 9B, 10C",
+          status: "Active",
+        },
+        {
+          id: 2,
+          name: "Sarah Johnson",
+          email: "sarah.johnson@example.com",
+          subject: "Science",
+          classes: "7A, 8B, 9A",
+          status: "Active",
+        },
+        {
+          id: 3,
+          name: "Michael Brown",
+          email: "michael.brown@example.com",
+          subject: "English",
+          classes: "10A, 10B, 10C",
+          status: "Active",
+        },
+        {
+          id: 4,
+          name: "Emily Davis",
+          email: "emily.davis@example.com",
+          subject: "History",
+          classes: "8A, 9A, 9C",
+          status: "Active",
+        },
+        {
+          id: 5,
+          name: "David Wilson",
+          email: "david.wilson@example.com",
+          subject: "Geography",
+          classes: "7B, 8C, 9B",
+          status: "Inactive",
+        },
+      ]
       : [
-          { id: 1, name: "Alex Johnson", email: "alex.j@example.com", class: "8A", rollNo: "8A01", status: "Active" },
-          { id: 2, name: "Maria Garcia", email: "maria.g@example.com", class: "8A", rollNo: "8A02", status: "Active" },
-          { id: 3, name: "James Wilson", email: "james.w@example.com", class: "8B", rollNo: "8B01", status: "Active" },
-          { id: 4, name: "Sarah Chen", email: "sarah.c@example.com", class: "8B", rollNo: "8B02", status: "Active" },
-          { id: 5, name: "Raj Patel", email: "raj.p@example.com", class: "9A", rollNo: "9A01", status: "Active" },
-          {
-            id: 6,
-            name: "Emma Thompson",
-            email: "emma.t@example.com",
-            class: "9A",
-            rollNo: "9A02",
-            status: "Inactive",
-          },
-          {
-            id: 7,
-            name: "Mohammed Ali",
-            email: "mohammed.a@example.com",
-            class: "9B",
-            rollNo: "9B01",
-            status: "Active",
-          },
-          {
-            id: 8,
-            name: "Sofia Rodriguez",
-            email: "sofia.r@example.com",
-            class: "9B",
-            rollNo: "9B02",
-            status: "Active",
-          },
-        ]
+        { id: 1, name: "Alex Johnson", email: "alex.j@example.com", class: "8A", rollNo: "8A01", status: "Active" },
+        { id: 2, name: "Maria Garcia", email: "maria.g@example.com", class: "8A", rollNo: "8A02", status: "Active" },
+        { id: 3, name: "James Wilson", email: "james.w@example.com", class: "8B", rollNo: "8B01", status: "Active" },
+        { id: 4, name: "Sarah Chen", email: "sarah.c@example.com", class: "8B", rollNo: "8B02", status: "Active" },
+        { id: 5, name: "Raj Patel", email: "raj.p@example.com", class: "9A", rollNo: "9A01", status: "Active" },
+        {
+          id: 6,
+          name: "Emma Thompson",
+          email: "emma.t@example.com",
+          class: "9A",
+          rollNo: "9A02",
+          status: "Inactive",
+        },
+        {
+          id: 7,
+          name: "Mohammed Ali",
+          email: "mohammed.a@example.com",
+          class: "9B",
+          rollNo: "9B01",
+          status: "Active",
+        },
+        {
+          id: 8,
+          name: "Sofia Rodriguez",
+          email: "sofia.r@example.com",
+          class: "9B",
+          rollNo: "9B02",
+          status: "Active",
+        },
+      ]
 
   // Filter users based on search query
   const filteredUsers = users.filter(
@@ -170,9 +170,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 )}
                 <TableCell>
                   <span
-                    className={`px-2 py-1 rounded-full text-xs ${
-                      user.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}
+                    className={`px-2 py-1 rounded-full text-xs ${user.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}
                   >
                     {user.status}
                   </span>

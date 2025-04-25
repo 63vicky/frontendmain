@@ -2,16 +2,17 @@
 
 import type React from "react"
 
-import { useState, Suspense } from "react"
+import { useState, Suspense, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { BookOpen, GraduationCap, Building2 } from "lucide-react"
+import { BookOpen, GraduationCap, Building2, EyeOff, Eye } from "lucide-react"
+import { authService } from "@/lib/services/auth"
 
 export default function LoginPage() {
   return (
@@ -24,6 +25,7 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
+  const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
   const defaultRole = searchParams.get("role") || "student"
@@ -34,6 +36,16 @@ function LoginContent() {
     role: defaultRole,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword)
+  }
+
+  useEffect(() => {
+    setFormData(prev => ({ ...prev, role: defaultRole }))
+    router.push(`/login?role=${defaultRole}`)
+  }, [defaultRole])
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -42,6 +54,7 @@ function LoginContent() {
 
   const handleRoleChange = (value: string) => {
     setFormData((prev) => ({ ...prev, role: value }))
+    router.push(`/login?role=${value}`)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,43 +62,34 @@ function LoginContent() {
     setIsLoading(true)
 
     try {
-      // const response = await fetch('http://localhost:5000/api/auth/login', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(formData),
-      // })
+      const { token, user } = await authService.login(formData.email, formData.password, formData.role)
+      
+      // Verify that the selected role matches the user's actual role
+      if (user.role !== formData.role) {
+        throw new Error(`Please login as ${user.role}`)
+      }
 
-      // const data = await response.json()
-
-      // if (!response.ok) {
-      //   throw new Error(data.message || 'Login failed')
-      // }
-
-      // // Store token in localStorage
-      // localStorage.setItem('token', data.token)
-      // localStorage.setItem('user', JSON.stringify(data.user))
-
-      // toast({
-      //   title: "Login Successful",
-      //   description: `Logged in as ${data.user.role}`,
-      // })
-      console.log(searchParams.get("role"))
+      toast({
+        title: "Login Successful",
+        description: `Welcome back, ${user.name}!`,
+        duration: 3000,
+      })
 
       // Redirect based on role
-      if (searchParams.get("role") === "principal") {
+      if (user.role === "principal") {
         router.push("/dashboard/principal")
-      } else if (searchParams.get("role") === "teacher") {
+      } else if (user.role === "teacher") {
         router.push("/dashboard/teacher")
       } else {
         router.push("/dashboard/student")
       }
-    } catch (error) {
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || "An error occurred during login"
       toast({
         title: "Login Failed",
-        description: error instanceof Error ? error.message : "An error occurred",
+        description: errorMessage,
         variant: "destructive",
+        duration: 3000,
       })
     } finally {
       setIsLoading(false)
@@ -144,15 +148,25 @@ function LoginContent() {
                 <Label htmlFor="password" className="text-slate-700 dark:text-slate-300">
                   Password
                 </Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={formData.password}
+                    onChange={handleChange}
                   className="border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
                 />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={togglePasswordVisibility}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 hover:bg-transparent"
+                >
+                  {showPassword ? <EyeOff /> : <Eye />}
+                </Button>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label className="text-slate-700 dark:text-slate-300">Login As</Label>

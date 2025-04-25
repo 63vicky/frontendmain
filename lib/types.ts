@@ -87,3 +87,35 @@ export interface StudentResult {
   bestScore: number
   bestAttempt: string // ID of the best attempt
 }
+
+export interface DashboardStats {
+  totalTeachers?: number
+  totalStudents?: number
+  activeExams?: number
+  completedExams?: number
+  totalClasses?: number
+  totalSubjects?: number
+  upcomingExams?: number
+  averageScore?: number
+}
+
+export interface RecentExam {
+  id: string
+  name: string
+  date: string
+  status: "Active" | "Completed" | "Upcoming"
+  subject?: string
+  class?: string
+  teacherName?: string
+}
+
+export interface ClassPerformance {
+  class: string
+  score: number
+  totalStudents: number
+  passPercentage: number
+  subjectScores: {
+    subject: string
+    averageScore: number
+  }[]
+}
