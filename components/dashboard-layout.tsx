@@ -250,10 +250,10 @@ function DashboardContent({
                 Dashboard
               </Link>
               <Button onClick={handleLogout} variant="outline" asChild>
-                <Link href="/login" className="text-foreground ">
+                
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
-                </Link>
+                {/* </Link> */}
               </Button>
             </nav>
             <Button
