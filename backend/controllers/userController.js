@@ -38,7 +38,7 @@ const getUserById = async (req, res) => {
 // Create new user
 const createUser = async (req, res) => {
   try {
-    const { name, email, password, role, class: userClass, classes, subjects } = req.body;
+    const { name, email, password, role, class: userClass, classes, subjects, subject, rollNo } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -54,7 +54,9 @@ const createUser = async (req, res) => {
       role,
       class: userClass,
       classes,
-      subjects
+      subjects,
+      subject,
+      rollNo
     });
 
     await user.save();
@@ -72,7 +74,7 @@ const createUser = async (req, res) => {
 // Update user
 const updateUser = async (req, res) => {
   try {
-    const { name, email, role, class: userClass, classes, subjects } = req.body;
+    const { name, email, role, class: userClass, classes, subjects, subject, status } = req.body;
     const userId = req.params.id;
 
     // Check if user exists
@@ -88,6 +90,8 @@ const updateUser = async (req, res) => {
     user.class = userClass || user.class;
     user.classes = classes || user.classes;
     user.subjects = subjects || user.subjects;
+    user.subject = subject || user.subject;
+    user.status = status || user.status;
 
     await user.save();
 

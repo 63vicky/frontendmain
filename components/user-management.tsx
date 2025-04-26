@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,99 +15,255 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { teacherApi, studentApi } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
 
 interface UserManagementProps {
   userType: "teacher" | "student"
   teacherView?: boolean
 }
 
+interface Teacher {
+  _id: string;
+  name: string;
+  email: string;
+  subject: string;
+  classes: string[];
+  status: 'active' | 'inactive';
+}
+
+interface Student {
+  _id: string;
+  name: string;
+  email: string;
+  class: string;
+  rollNo: string;
+  status: 'active' | 'inactive';
+}
+
 export default function UserManagement({ userType, teacherView = false }: UserManagementProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [teachers, setTeachers] = useState<Teacher[]>([])
+  const [students, setStudents] = useState<Student[]>([])
+  const [loading, setLoading] = useState(true)
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    subject: '',
+    classes: '',
+    class: '',
+    rollNo: ''
+  })
+  const [editData, setEditData] = useState<Teacher | Student | null>(null)
+  const { toast } = useToast()
 
-  // Mock data
-  const users =
-    userType === "teacher"
-      ? [
-        {
-          id: 1,
-          name: "John Smith",
-          email: "john.smith@example.com",
-          subject: "Mathematics",
-          classes: "8A, 9B, 10C",
-          status: "Active",
-        },
-        {
-          id: 2,
-          name: "Sarah Johnson",
-          email: "sarah.johnson@example.com",
-          subject: "Science",
-          classes: "7A, 8B, 9A",
-          status: "Active",
-        },
-        {
-          id: 3,
-          name: "Michael Brown",
-          email: "michael.brown@example.com",
-          subject: "English",
-          classes: "10A, 10B, 10C",
-          status: "Active",
-        },
-        {
-          id: 4,
-          name: "Emily Davis",
-          email: "emily.davis@example.com",
-          subject: "History",
-          classes: "8A, 9A, 9C",
-          status: "Active",
-        },
-        {
-          id: 5,
-          name: "David Wilson",
-          email: "david.wilson@example.com",
-          subject: "Geography",
-          classes: "7B, 8C, 9B",
-          status: "Inactive",
-        },
-      ]
-      : [
-        { id: 1, name: "Alex Johnson", email: "alex.j@example.com", class: "8A", rollNo: "8A01", status: "Active" },
-        { id: 2, name: "Maria Garcia", email: "maria.g@example.com", class: "8A", rollNo: "8A02", status: "Active" },
-        { id: 3, name: "James Wilson", email: "james.w@example.com", class: "8B", rollNo: "8B01", status: "Active" },
-        { id: 4, name: "Sarah Chen", email: "sarah.c@example.com", class: "8B", rollNo: "8B02", status: "Active" },
-        { id: 5, name: "Raj Patel", email: "raj.p@example.com", class: "9A", rollNo: "9A01", status: "Active" },
-        {
-          id: 6,
-          name: "Emma Thompson",
-          email: "emma.t@example.com",
-          class: "9A",
-          rollNo: "9A02",
-          status: "Inactive",
-        },
-        {
-          id: 7,
-          name: "Mohammed Ali",
-          email: "mohammed.a@example.com",
-          class: "9B",
-          rollNo: "9B01",
-          status: "Active",
-        },
-        {
-          id: 8,
-          name: "Sofia Rodriguez",
-          email: "sofia.r@example.com",
-          class: "9B",
-          rollNo: "9B02",
-          status: "Active",
-        },
-      ]
+  useEffect(() => {
+    if (userType === 'teacher') {
+      loadTeachers()
+    } else {
+      loadStudents()
+    }
+  }, [userType])
+
+  const loadTeachers = async () => {
+    try {
+      const data = await teacherApi.getAllTeachers()
+      setTeachers(data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load teachers",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadStudents = async () => {
+    try {
+      const data = await studentApi.getAllStudents()
+      setStudents(data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load students",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    try {
+      if (userType === 'teacher') {
+        const classes = formData.classes.split(',').map(c => c.trim())
+        await teacherApi.createTeacher({
+          ...formData,
+          classes
+        })
+      } else {
+        await studentApi.createStudent({
+          name: formData.name,
+          email: formData.email,
+          password: formData.password,
+          class: formData.class,
+          rollNo: formData.rollNo
+        })
+      }
+      toast({
+        title: "Success",
+        description: `${userType === 'teacher' ? 'Teacher' : 'Student'} added successfully`
+      })
+      setShowAddDialog(false)
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        subject: '',
+        classes: '',
+        class: '',
+        rollNo: ''
+      })
+      if (userType === 'teacher') {
+        loadTeachers()
+      } else {
+        loadStudents()
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to add ${userType}`,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleEdit = (user: Teacher | Student) => {
+    setEditData(user)
+    setShowEditDialog(true)
+  }
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editData) return
+
+    try {
+      if (userType === 'teacher') {
+        const teacher = editData as Teacher
+        await teacherApi.updateTeacher(teacher._id, {
+          name: teacher.name,
+          email: teacher.email,
+          subject: teacher.subject,
+          classes: teacher.classes,
+          status: teacher.status
+        })
+      } else {
+        const student = editData as Student
+        await studentApi.updateStudent(student._id, {
+          name: student.name,
+          email: student.email,
+          class: student.class,
+          rollNo: student.rollNo,
+          status: student.status
+        })
+      }
+      toast({
+        title: "Success",
+        description: `${userType === 'teacher' ? 'Teacher' : 'Student'} updated successfully`
+      })
+      setShowEditDialog(false)
+      setEditData(null)
+      if (userType === 'teacher') {
+        loadTeachers()
+      } else {
+        loadStudents()
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to update ${userType}`,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm(`Are you sure you want to delete this ${userType}?`)) return
+    try {
+      if (userType === 'teacher') {
+        await teacherApi.deleteTeacher(id)
+      } else {
+        await studentApi.deleteStudent(id)
+      }
+      toast({
+        title: "Success",
+        description: `${userType === 'teacher' ? 'Teacher' : 'Student'} deleted successfully`
+      })
+      if (userType === 'teacher') {
+        loadTeachers()
+      } else {
+        loadStudents()
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to delete ${userType}`,
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleStatusChange = async (id: string, currentStatus: 'active' | 'inactive') => {
+    try {
+      if (userType === 'teacher') {
+        await teacherApi.updateTeacher(id, {
+          status: currentStatus === 'active' ? 'inactive' : 'active'
+        })
+      } else {
+        await studentApi.updateStudent(id, {
+          status: currentStatus === 'active' ? 'inactive' : 'active'
+        })
+      }
+      toast({
+        title: "Success",
+        description: `${userType === 'teacher' ? 'Teacher' : 'Student'} status updated successfully`
+      })
+      if (userType === 'teacher') {
+        loadTeachers()
+      } else {
+        loadStudents()
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to update ${userType} status`,
+        variant: "destructive"
+      })
+    }
+  }
 
   // Filter users based on search query
-  const filteredUsers = users.filter(
-    (user) =>
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const filteredUsers = userType === 'teacher' 
+    ? teachers.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : students.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+
+  if (loading) {
+    return <div>Loading...</div>
+  }
 
   return (
     <Card>
@@ -154,34 +310,45 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
           </TableHeader>
           <TableBody>
             {filteredUsers.map((user) => (
-              <TableRow key={user.id}>
+              <TableRow key={user._id}>
                 <TableCell className="font-medium">{user.name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 {userType === "teacher" ? (
                   <>
-                    <TableCell>{(user as any).subject}</TableCell>
-                    <TableCell>{(user as any).classes}</TableCell>
+                    <TableCell>{(user as Teacher).subject}</TableCell>
+                    <TableCell>{(user as Teacher).classes.join(', ')}</TableCell>
                   </>
                 ) : (
                   <>
-                    <TableCell>{(user as any).class}</TableCell>
-                    <TableCell>{(user as any).rollNo}</TableCell>
+                    <TableCell>{(user as Student).class}</TableCell>
+                    <TableCell>{(user as Student).rollNo}</TableCell>
                   </>
                 )}
                 <TableCell>
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs ${user.status === "Active" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                      }`}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleStatusChange(user._id, user.status)}
+                    className={user.status === "active" ? "text-green-600" : "text-red-600"}
                   >
-                    {user.status}
-                  </span>
+                    {user.status === "active" ? "Active" : "Inactive"}
+                  </Button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">
+                  <Button 
+                    variant="ghost" 
+                    size="sm"
+                    onClick={() => handleEdit(user)}
+                  >
                     Edit
                   </Button>
                   {!teacherView && (
-                    <Button variant="ghost" size="sm" className="text-red-500">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="text-red-500"
+                      onClick={() => handleDelete(user._id)}
+                    >
                       Delete
                     </Button>
                   )}
@@ -192,6 +359,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         </Table>
       </CardContent>
 
+      {/* Add User Dialog */}
       <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
         <DialogContent>
           <DialogHeader>
@@ -199,68 +367,227 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
             <DialogDescription>Fill in the details to add a new {userType} to the system.</DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Name
-              </Label>
-              <Input id="name" className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email
-              </Label>
-              <Input id="email" type="email" className="col-span-3" />
-            </div>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name" className="text-right">
+                  Name
+                </Label>
+                <Input 
+                  id="name" 
+                  className="col-span-3"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="email" className="text-right">
+                  Email
+                </Label>
+                <Input 
+                  id="email" 
+                  type="email" 
+                  className="col-span-3"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="password" className="text-right">
+                  Password
+                </Label>
+                <Input 
+                  id="password" 
+                  type="password" 
+                  className="col-span-3"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  required
+                />
+              </div>
 
-            {userType === "teacher" ? (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="subject" className="text-right">
-                    Subject
-                  </Label>
-                  <Input id="subject" className="col-span-3" />
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="classes" className="text-right">
-                    Classes
-                  </Label>
-                  <Input id="classes" className="col-span-3" placeholder="e.g., 8A, 9B, 10C" />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="class" className="text-right">
-                    Class
-                  </Label>
-                  <Select>
-                    <SelectTrigger className="col-span-3">
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="7A">7A</SelectItem>
-                      <SelectItem value="7B">7B</SelectItem>
-                      <SelectItem value="8A">8A</SelectItem>
-                      <SelectItem value="8B">8B</SelectItem>
-                      <SelectItem value="9A">9A</SelectItem>
-                      <SelectItem value="9B">9B</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-4 items-center gap-4">
-                  <Label htmlFor="rollNo" className="text-right">
-                    Roll No.
-                  </Label>
-                  <Input id="rollNo" className="col-span-3" />
-                </div>
-              </>
-            )}
-          </div>
+              {userType === "teacher" ? (
+                <>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="subject" className="text-right">
+                      Subject
+                    </Label>
+                    <Input 
+                      id="subject" 
+                      className="col-span-3"
+                      value={formData.subject}
+                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="classes" className="text-right">
+                      Classes
+                    </Label>
+                    <Input 
+                      id="classes" 
+                      className="col-span-3" 
+                      placeholder="e.g., 8A, 9B, 10C"
+                      value={formData.classes}
+                      onChange={(e) => setFormData({ ...formData, classes: e.target.value })}
+                      required
+                    />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="class" className="text-right">
+                      Class
+                    </Label>
+                    <Select
+                      value={formData.class}
+                      onValueChange={(value) => setFormData({ ...formData, class: value })}
+                    >
+                      <SelectTrigger className="col-span-3">
+                        <SelectValue placeholder="Select class" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="7A">7A</SelectItem>
+                        <SelectItem value="7B">7B</SelectItem>
+                        <SelectItem value="8A">8A</SelectItem>
+                        <SelectItem value="8B">8B</SelectItem>
+                        <SelectItem value="9A">9A</SelectItem>
+                        <SelectItem value="9B">9B</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="rollNo" className="text-right">
+                      Roll No.
+                    </Label>
+                    <Input 
+                      id="rollNo" 
+                      className="col-span-3"
+                      value={formData.rollNo}
+                      onChange={(e) => setFormData({ ...formData, rollNo: e.target.value })}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="submit">Add {userType === "teacher" ? "Teacher" : "Student"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
-          <DialogFooter>
-            <Button type="submit">Add {userType === "teacher" ? "Teacher" : "Student"}</Button>
-          </DialogFooter>
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit {userType === "teacher" ? "Teacher" : "Student"}</DialogTitle>
+            <DialogDescription>Update {userType} details.</DialogDescription>
+          </DialogHeader>
+
+          {editData && (
+            <form onSubmit={handleEditSubmit}>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-name" className="text-right">
+                    Name
+                  </Label>
+                  <Input 
+                    id="edit-name" 
+                    className="col-span-3"
+                    value={editData.name}
+                    onChange={(e) => setEditData({ ...editData, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-email" className="text-right">
+                    Email
+                  </Label>
+                  <Input 
+                    id="edit-email" 
+                    type="email" 
+                    className="col-span-3"
+                    value={editData.email}
+                    onChange={(e) => setEditData({ ...editData, email: e.target.value })}
+                    required
+                  />
+                </div>
+                {userType === "teacher" ? (
+                  <>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="edit-subject" className="text-right">
+                        Subject
+                      </Label>
+                      <Input 
+                        id="edit-subject" 
+                        className="col-span-3"
+                        value={(editData as Teacher).subject}
+                        onChange={(e) => setEditData({ ...editData, subject: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="edit-classes" className="text-right">
+                        Classes
+                      </Label>
+                      <Input 
+                        id="edit-classes" 
+                        className="col-span-3" 
+                        placeholder="e.g., 8A, 9B, 10C"
+                        value={(editData as Teacher).classes.join(', ')}
+                        onChange={(e) => setEditData({ ...editData, classes: e.target.value.split(',').map(c => c.trim()) })}
+                        required
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="edit-class" className="text-right">
+                        Class
+                      </Label>
+                      <Select
+                        value={(editData as Student).class}
+                        onValueChange={(value) => setEditData({ ...editData, class: value })}
+                      >
+                        <SelectTrigger className="col-span-3">
+                          <SelectValue placeholder="Select class" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7A">7A</SelectItem>
+                          <SelectItem value="7B">7B</SelectItem>
+                          <SelectItem value="8A">8A</SelectItem>
+                          <SelectItem value="8B">8B</SelectItem>
+                          <SelectItem value="9A">9A</SelectItem>
+                          <SelectItem value="9B">9B</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-4 items-center gap-4">
+                      <Label htmlFor="edit-rollNo" className="text-right">
+                        Roll No.
+                      </Label>
+                      <Input 
+                        id="edit-rollNo" 
+                        className="col-span-3"
+                        value={(editData as Student).rollNo}
+                        onChange={(e) => setEditData({ ...editData, rollNo: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </>
+                )}
+              </div>
+              <DialogFooter>
+                <Button type="submit">Update {userType === "teacher" ? "Teacher" : "Student"}</Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </Card>

@@ -14,6 +14,12 @@ const {
 // Get all users (admin only)
 router.get('/', authenticate, authorize('principal'), getUsers);
 
+// Get all teachers
+router.get('/teachers', authenticate, getTeachers);
+
+// Get all students (with optional class filter)
+router.get('/students', authenticate, getStudents);
+
 // Get user by ID
 router.get('/:id', authenticate, getUserById);
 
@@ -25,11 +31,5 @@ router.put('/:id', authenticate, updateUser);
 
 // Delete user (admin only)
 router.delete('/:id', authenticate, authorize('principal'), deleteUser);
-
-// Get all teachers
-router.get('/teachers', authenticate, getTeachers);
-
-// Get all students (with optional class filter)
-router.get('/students', authenticate, getStudents);
 
 module.exports = router; 
