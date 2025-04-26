@@ -1,105 +1,153 @@
-// In a real app, this would be a database model
-let classes = [
-  { id: 1, name: 'Class 1', grade: '1', teacherId: 1 },
-  { id: 2, name: 'Class 2', grade: '2', teacherId: 2 },
-  { id: 3, name: 'Class 3', grade: '3', teacherId: 3 }
-];
+const Class = require('../models/Class');
+const User = require('../models/User');
 
-const getClasses = async (req, res) => {
+// Get all classes
+const getAllClasses = async (req, res) => {
   try {
-    res.json(classes);
+    const classes = await Class.find()
+      .sort({ name: 1 })
+      .lean();
+
+    // Get all teacher IDs from classes
+    const teacherIds = classes.map(cls => cls.teacher);
+
+    // Fetch all teachers in one query
+    const teachers = await User.find(
+      { _id: { $in: teacherIds } },
+      { _id: 1, name: 1 }
+    ).lean();
+
+    // Create a map of teacher IDs to names
+    const teacherMap = teachers.reduce((acc, teacher) => {
+      acc[teacher._id.toString()] = teacher.name;
+      return acc;
+    }, {});
+
+    // Add teacher names to classes
+    const classesWithTeacherNames = classes.map(cls => ({
+      ...cls,
+      teacherName: teacherMap[cls.teacher] || 'Unknown Teacher'
+    }));
+
+    res.json(classesWithTeacherNames);
   } catch (error) {
-    console.error('Get classes error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Error fetching classes', error: error.message });
   }
 };
 
+// Get class by ID
 const getClassById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const classItem = classes.find(c => c.id === parseInt(id));
-    
-    if (!classItem) {
+    const classData = await Class.findById(req.params.id).lean();
+
+    if (!classData) {
       return res.status(404).json({ message: 'Class not found' });
     }
 
-    res.json(classItem);
+    res.json(classData);
   } catch (error) {
-    console.error('Get class by id error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Error fetching class', error: error.message });
   }
 };
 
+// Create new class
 const createClass = async (req, res) => {
   try {
-    const { name, grade, teacherId } = req.body;
-    
-    // Validate required fields
-    if (!name || !grade || !teacherId) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    const { name, section, teacher, status } = req.body;
+
+    // Check if class with same name already exists
+    const existingClass = await Class.findOne({ name });
+
+    if (existingClass) {
+      return res.status(400).json({
+        message: 'Class with this name already exists'
+      });
     }
 
-    // Create new class
-    const newClass = {
-      id: classes.length + 1,
+    const newClass = new Class({
       name,
-      grade,
-      teacherId
-    };
+      section,
+      teacher,
+      status,
+      students: 0
+    });
 
-    classes.push(newClass);
+    await newClass.save();
     res.status(201).json(newClass);
   } catch (error) {
-    console.error('Create class error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Validation error',
+        error: Object.values(error.errors).map(err => err.message)
+      });
+    }
+    res.status(500).json({ message: 'Error creating class', error: error.message });
   }
 };
 
+// Update class
 const updateClass = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, grade, teacherId } = req.body;
-    
-    const classIndex = classes.findIndex(c => c.id === parseInt(id));
-    if (classIndex === -1) {
+    const { name, section, teacher, status } = req.body;
+    const classId = req.params.id;
+
+    // Check if class exists
+    const existingClass = await Class.findById(classId);
+    if (!existingClass) {
       return res.status(404).json({ message: 'Class not found' });
     }
 
-    // Update class
-    classes[classIndex] = {
-      ...classes[classIndex],
-      name: name || classes[classIndex].name,
-      grade: grade || classes[classIndex].grade,
-      teacherId: teacherId || classes[classIndex].teacherId
-    };
+    // Check if new name conflicts with other classes
+    if (name !== existingClass.name) {
+      const duplicateClass = await Class.findOne({
+        _id: { $ne: classId },
+        name
+      });
 
-    res.json(classes[classIndex]);
+      if (duplicateClass) {
+        return res.status(400).json({
+          message: 'Class with this name already exists'
+        });
+      }
+    }
+
+    // Update class fields
+    existingClass.name = name || existingClass.name;
+    existingClass.section = section || existingClass.section;
+    existingClass.teacher = teacher || existingClass.teacher;
+    existingClass.status = status || existingClass.status;
+
+    await existingClass.save();
+    res.json(existingClass);
   } catch (error) {
-    console.error('Update class error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        message: 'Validation error',
+        error: Object.values(error.errors).map(err => err.message)
+      });
+    }
+    res.status(500).json({ message: 'Error updating class', error: error.message });
   }
 };
 
+// Delete class
 const deleteClass = async (req, res) => {
   try {
-    const { id } = req.params;
-    const classIndex = classes.findIndex(c => c.id === parseInt(id));
-    
-    if (classIndex === -1) {
+    const classId = req.params.id;
+
+    const deletedClass = await Class.findByIdAndDelete(classId);
+    if (!deletedClass) {
       return res.status(404).json({ message: 'Class not found' });
     }
 
-    // Remove class
-    classes.splice(classIndex, 1);
     res.json({ message: 'Class deleted successfully' });
   } catch (error) {
-    console.error('Delete class error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: 'Error deleting class', error: error.message });
   }
 };
 
 module.exports = {
-  getClasses,
+  getAllClasses,
   getClassById,
   createClass,
   updateClass,

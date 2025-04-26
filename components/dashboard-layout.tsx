@@ -232,7 +232,7 @@ function DashboardContent({
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
-      <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4 shadow-md">
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4 shadow-md">
         <div className="mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold flex items-center">
@@ -270,7 +270,7 @@ function DashboardContent({
 
       {/* Mobile menu */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-white dark:bg-slate-800 shadow-lg z-50">
+        <div className="fixed w-full top-16 md:hidden bg-white dark:bg-slate-800 shadow-lg z-50">
           <div className="py-2">
             {navItems.map((item, index) => (
               <Link
@@ -302,8 +302,8 @@ function DashboardContent({
         </div>
       )}
 
-      <div className="flex flex-1">
-        <aside className="w-64 bg-white dark:bg-slate-800 border-r dark:border-slate-700 hidden md:block shadow-sm">
+      <div className="flex flex-1 relative">
+        <aside className="fixed left-0 top-0 pt-16 h-full z-40 w-64 bg-white dark:bg-slate-800 border-r dark:border-slate-700 hidden md:block shadow-sm">
           <div className="p-4">
             <div className="mb-6">
               <div className="text-xs uppercase text-indigo-500 dark:text-indigo-400 font-semibold tracking-wider mb-2">
@@ -334,7 +334,7 @@ function DashboardContent({
           </div>
         </aside>
 
-        <main className="flex-1 p-6 bg-slate-50 dark:bg-slate-900 max-w-[100vw] overflow-auto">{children}</main>
+        <main className="flex-1 p-6 md:ml-64 bg-slate-50 dark:bg-slate-900 max-w-[100vw] overflow-auto">{children}</main>
       </div>
     </div>
   )

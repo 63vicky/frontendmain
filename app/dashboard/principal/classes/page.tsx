@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,41 +15,165 @@ import {
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import DashboardLayout from "@/components/dashboard-layout"
-import { PlusCircle, Search, Edit, Trash2, Users } from "lucide-react"
+import { PlusCircle, Search, Edit, Trash2, Users, Loader2 } from "lucide-react"
+import { classApi } from "@/lib/api"
+import { useToast } from "@/hooks/use-toast"
+import { TeacherSelect } from "@/components/TeacherSelect"
+
+interface Class {
+  _id: string;
+  name: string;
+  section: string;
+  students: number;
+  teacher: string;
+  teacherName: string;
+  status: 'Active' | 'Inactive';
+}
 
 export default function ClassManagement() {
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
-  const [selectedClass, setSelectedClass] = useState<any>(null)
+  const [selectedClass, setSelectedClass] = useState<Class | null>(null)
+  const [classes, setClasses] = useState<Class[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formData, setFormData] = useState({
+    name: '',
+    section: '',
+    teacher: '',
+    status: 'Active' as 'Active' | 'Inactive'
+  })
+  const { toast } = useToast()
 
-  // Mock data
-  const classes = [
-    { id: 1, name: "Class 7A", section: "A", students: 32, teacher: "John Smith", status: "Active" },
-    { id: 2, name: "Class 7B", section: "B", students: 30, teacher: "Sarah Johnson", status: "Active" },
-    { id: 3, name: "Class 8A", section: "A", students: 35, teacher: "Michael Brown", status: "Active" },
-    { id: 4, name: "Class 8B", section: "B", students: 33, teacher: "Emily Davis", status: "Active" },
-    { id: 5, name: "Class 9A", section: "A", students: 30, teacher: "David Wilson", status: "Active" },
-    { id: 6, name: "Class 9B", section: "B", students: 28, teacher: "Jennifer Lee", status: "Inactive" },
-    { id: 7, name: "Class 10A", section: "A", students: 25, teacher: "Robert Taylor", status: "Active" },
-    { id: 8, name: "Class 10B", section: "B", students: 27, teacher: "Lisa Anderson", status: "Active" },
-  ]
+  useEffect(() => {
+    loadClasses()
+  }, [])
+
+  const loadClasses = async () => {
+    try {
+      setLoading(true)
+      const data = await classApi.getAllClasses()
+      setClasses(data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load classes",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsSubmitting(true)
+    try {
+      if (selectedClass) {
+        await classApi.updateClass(selectedClass._id, formData)
+        toast({
+          title: "Success",
+          description: "Class updated successfully",
+          variant: "default"
+        })
+      } else {
+        await classApi.createClass(formData)
+        toast({
+          title: "Success",
+          description: "Class created successfully",
+          variant: "default"
+        })
+      }
+      setShowAddDialog(false)
+      setSelectedClass(null)
+      setFormData({
+        name: '',
+        section: '',
+        teacher: '',
+        status: 'Active'
+      })
+      loadClasses()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: selectedClass ? "Failed to update class" : "Failed to create class",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleEdit = (cls: Class) => {
+    setSelectedClass(cls)
+    setFormData({
+      name: cls.name,
+      section: cls.section,
+      teacher: cls.teacher,
+      status: cls.status
+    })
+    setShowAddDialog(true)
+  }
+
+  const handleDelete = async () => {
+    if (!selectedClass) return
+    setIsSubmitting(true)
+    try {
+      await classApi.deleteClass(selectedClass._id)
+      toast({
+        title: "Success",
+        description: "Class deleted successfully",
+        variant: "default"
+      })
+      setShowDeleteDialog(false)
+      setSelectedClass(null)
+      loadClasses()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete class",
+        variant: "destructive"
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleStatusToggle = async (cls: Class) => {
+    try {
+      const newStatus = cls.status === 'Active' ? 'Inactive' : 'Active'
+      await classApi.updateClass(cls._id, { status: newStatus })
+      toast({
+        title: "Success",
+        description: `Class status updated to ${newStatus}`,
+        variant: "default"
+      })
+      loadClasses()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update class status",
+        variant: "destructive"
+      })
+    }
+  }
 
   // Filter classes based on search query
   const filteredClasses = classes.filter(
     (cls) =>
       cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cls.teacher.toLowerCase().includes(searchQuery.toLowerCase()),
+      cls.teacherName.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const handleEdit = (cls: any) => {
-    setSelectedClass(cls)
-    setShowAddDialog(true)
-  }
-
-  const handleDelete = (cls: any) => {
-    setSelectedClass(cls)
-    setShowDeleteDialog(true)
+  if (loading) {
+    return (
+      <DashboardLayout role="principal">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -64,6 +188,12 @@ export default function ClassManagement() {
             className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
             onClick={() => {
               setSelectedClass(null)
+              setFormData({
+                name: '',
+                section: '',
+                teacher: '',
+                status: 'Active'
+              })
               setShowAddDialog(true)
             }}
           >
@@ -110,7 +240,7 @@ export default function ClassManagement() {
                   </TableRow>
                 ) : (
                   filteredClasses.map((cls) => (
-                    <TableRow key={cls.id}>
+                    <TableRow key={cls._id}>
                       <TableCell className="font-medium">{cls.name}</TableCell>
                       <TableCell>{cls.section}</TableCell>
                       <TableCell>
@@ -119,11 +249,11 @@ export default function ClassManagement() {
                           {cls.students}
                         </div>
                       </TableCell>
-                      <TableCell>{cls.teacher}</TableCell>
+                      <TableCell>{cls.teacherName}</TableCell>
                       <TableCell>
-                        <Badge
+                        <Badge onClick={() => handleStatusToggle(cls)}
                           variant={cls.status === "Active" ? "default" : "secondary"}
-                          className={cls.status === "Active" ? "bg-green-500" : "bg-red-500"}
+                          className={cls.status === "Active" ? "bg-green-500 cursor-pointer" : "bg-red-500 cursor-pointer"}
                         >
                           {cls.status}
                         </Badge>
@@ -132,7 +262,14 @@ export default function ClassManagement() {
                         <Button variant="ghost" size="sm" onClick={() => handleEdit(cls)}>
                           <Edit className="h-4 w-4 text-indigo-500" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(cls)}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedClass(cls)
+                            setShowDeleteDialog(true)
+                          }}
+                        >
                           <Trash2 className="h-4 w-4 text-red-500" />
                         </Button>
                       </TableCell>
@@ -155,66 +292,87 @@ export default function ClassManagement() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="className" className="text-right font-medium">
-                Class Name
-              </label>
-              <Input
-                id="className"
-                defaultValue={selectedClass?.name || ""}
-                className="col-span-3"
-                placeholder="e.g., Class 7A"
-              />
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="className" className="text-right font-medium">
+                  Class Name
+                </label>
+                <Input
+                  id="className"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="col-span-3"
+                  placeholder="e.g., Class 7A"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="section" className="text-right font-medium">
+                  Section
+                </label>
+                <Input
+                  id="section"
+                  value={formData.section}
+                  onChange={(e) => setFormData({ ...formData, section: e.target.value })}
+                  className="col-span-3"
+                  placeholder="e.g., A"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="teacher" className="text-right font-medium">
+                  Class Teacher
+                </label>
+                <div className="col-span-3">
+                  <TeacherSelect
+                    value={formData.teacher}
+                    onChange={(value) => setFormData({ ...formData, teacher: value })}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="status" className="text-right font-medium">
+                  Status
+                </label>
+                <select
+                  id="status"
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'Active' | 'Inactive' })}
+                  className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                  required
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="section" className="text-right font-medium">
-                Section
-              </label>
-              <Input
-                id="section"
-                defaultValue={selectedClass?.section || ""}
-                className="col-span-3"
-                placeholder="e.g., A"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="teacher" className="text-right font-medium">
-                Class Teacher
-              </label>
-              <Input
-                id="teacher"
-                defaultValue={selectedClass?.teacher || ""}
-                className="col-span-3"
-                placeholder="Select class teacher"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <label htmlFor="status" className="text-right font-medium">
-                Status
-              </label>
-              <select
-                id="status"
-                defaultValue={selectedClass?.status || "Active"}
-                className="col-span-3 flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="Active">Active</option>
-                <option value="Inactive">Inactive</option>
-              </select>
-            </div>
-          </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-              Cancel
-            </Button>
-            <Button
-              className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
-              onClick={() => setShowAddDialog(false)}
-            >
-              {selectedClass ? "Save Changes" : "Add Class"}
-            </Button>
-          </DialogFooter>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowAddDialog(false)}
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {selectedClass ? "Saving..." : "Creating..."}
+                  </>
+                ) : (
+                  selectedClass ? "Save Changes" : "Add Class"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -229,11 +387,26 @@ export default function ClassManagement() {
           </DialogHeader>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button variant="destructive" onClick={() => setShowDeleteDialog(false)}>
-              Delete
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

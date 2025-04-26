@@ -15,7 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { teacherApi, studentApi } from "@/lib/api"
+import { Skeleton } from "@/components/ui/skeleton"
+import { PasswordInput } from "@/components/ui/password-input"
+import { teacherApi, studentApi, classApi } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 
 interface UserManagementProps {
@@ -41,13 +43,21 @@ interface Student {
   status: 'active' | 'inactive';
 }
 
+interface Class {
+  _id: string;
+  name: string;
+  code: string;
+}
+
 export default function UserManagement({ userType, teacherView = false }: UserManagementProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [students, setStudents] = useState<Student[]>([])
+  const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingClasses, setLoadingClasses] = useState(true)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -66,10 +76,28 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
     } else {
       loadStudents()
     }
+    loadClasses()
   }, [userType])
+
+  const loadClasses = async () => {
+    try {
+      setLoadingClasses(true)
+      const data = await classApi.getAllClasses()
+      setClasses(data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load classes",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingClasses(false)
+    }
+  }
 
   const loadTeachers = async () => {
     try {
+      setLoading(true)
       const data = await teacherApi.getAllTeachers()
       setTeachers(data)
     } catch (error) {
@@ -85,6 +113,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
 
   const loadStudents = async () => {
     try {
+      setLoading(true)
       const data = await studentApi.getAllStudents()
       setStudents(data)
     } catch (error) {
@@ -262,7 +291,27 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
       )
 
   if (loading) {
-    return <div>Loading...</div>
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-72" />
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex justify-between">
+              <Skeleton className="h-10 w-64" />
+              <Skeleton className="h-10 w-32" />
+            </div>
+            <div className="space-y-2">
+              {[...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    )
   }
 
   return (
@@ -320,7 +369,9 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                   </>
                 ) : (
                   <>
-                    <TableCell>{(user as Student).class}</TableCell>
+                    <TableCell>
+                      {classes.find(cls => cls._id === (user as Student).class)?.name || 'Unknown Class'}
+                    </TableCell>
                     <TableCell>{(user as Student).rollNo}</TableCell>
                   </>
                 )}
@@ -398,14 +449,14 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 <Label htmlFor="password" className="text-right">
                   Password
                 </Label>
-                <Input 
-                  id="password" 
-                  type="password" 
-                  className="col-span-3"
-                  value={formData.password}
-                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  required
-                />
+                <div className="col-span-3">
+                  <PasswordInput
+                    id="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
+                  />
+                </div>
               </div>
 
               {userType === "teacher" ? (
@@ -442,22 +493,29 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                     <Label htmlFor="class" className="text-right">
                       Class
                     </Label>
-                    <Select
-                      value={formData.class}
-                      onValueChange={(value) => setFormData({ ...formData, class: value })}
-                    >
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Select class" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="7A">7A</SelectItem>
-                        <SelectItem value="7B">7B</SelectItem>
-                        <SelectItem value="8A">8A</SelectItem>
-                        <SelectItem value="8B">8B</SelectItem>
-                        <SelectItem value="9A">9A</SelectItem>
-                        <SelectItem value="9B">9B</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <div className="col-span-3">
+                      {loadingClasses ? (
+                        <Skeleton className="h-10 w-full" />
+                      ) : classes.length > 0 ? (
+                        <Select
+                          value={formData.class}
+                          onValueChange={(value) => setFormData({ ...formData, class: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select class" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {classes.map((cls) => (
+                              <SelectItem key={cls._id} value={cls._id}>
+                                {cls.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <p className="text-sm text-slate-500">No classes available</p>
+                      )}
+                    </div>
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="rollNo" className="text-right">
@@ -551,22 +609,31 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       <Label htmlFor="edit-class" className="text-right">
                         Class
                       </Label>
-                      <Select
-                        value={(editData as Student).class}
-                        onValueChange={(value) => setEditData({ ...editData, class: value })}
-                      >
-                        <SelectTrigger className="col-span-3">
-                          <SelectValue placeholder="Select class" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="7A">7A</SelectItem>
-                          <SelectItem value="7B">7B</SelectItem>
-                          <SelectItem value="8A">8A</SelectItem>
-                          <SelectItem value="8B">8B</SelectItem>
-                          <SelectItem value="9A">9A</SelectItem>
-                          <SelectItem value="9B">9B</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="col-span-3">
+                        {loadingClasses ? (
+                          <Skeleton className="h-10 w-full" />
+                        ) : classes.length > 0 ? (
+                          <Select
+                            value={(editData as Student).class}
+                            onValueChange={(value) => setEditData({ ...editData, class: value })}
+                          >
+                            <SelectTrigger>
+                              <SelectValue>
+                                {classes.find(cls => cls._id === (editData as Student).class)?.name || "Select class"}
+                              </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                              {classes.map((cls) => (
+                                <SelectItem key={cls._id} value={cls._id}>
+                                  {cls.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <p className="text-sm text-slate-500">No classes available</p>
+                        )}
+                      </div>
                     </div>
                     <div className="grid grid-cols-4 items-center gap-4">
                       <Label htmlFor="edit-rollNo" className="text-right">

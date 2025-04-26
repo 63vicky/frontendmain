@@ -143,4 +143,56 @@ export const studentApi = {
   }
 };
 
+// Class Management APIs
+export const classApi = {
+  getAllClasses: async () => {
+    const response = await fetch(`${API_URL}/classes`, {
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to fetch classes');
+    return response.json();
+  },
+
+  createClass: async (classData: {
+    name: string;
+    section: string;
+    teacher: string;
+    status: 'Active' | 'Inactive';
+  }) => {
+    const response = await fetch(`${API_URL}/classes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(classData)
+    });
+    if (!response.ok) throw new Error('Failed to create class');
+    return response.json();
+  },
+
+  updateClass: async (id: string, classData: {
+    name?: string;
+    section?: string;
+    teacher?: string;
+    status?: 'Active' | 'Inactive';
+  }) => {
+    const response = await fetch(`${API_URL}/classes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(classData)
+    });
+    if (!response.ok) throw new Error('Failed to update class');
+    return response.json();
+  },
+
+  deleteClass: async (id: string) => {
+    const response = await fetch(`${API_URL}/classes/${id}`, {
+      method: 'DELETE',
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to delete class');
+    return response.json();
+  }
+};
+
 export default api; 
