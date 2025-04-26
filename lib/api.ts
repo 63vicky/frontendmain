@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { getToken } from './utils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -7,12 +8,12 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true // This is important for cookies
+  withCredentials: true // Enable cookies
 });
 
 // Add token to requests if it exists
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -25,7 +26,7 @@ api.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       // Handle unauthorized access
-      localStorage.removeItem('token');
+      document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
       window.location.href = '/login';
     }
     return Promise.reject(error);
@@ -193,6 +194,86 @@ export const classApi = {
     if (!response.ok) throw new Error('Failed to delete class');
     return response.json();
   }
+};
+
+// Subject Management
+export const getSubjects = async () => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/subjects`, {
+    credentials: 'include',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch subjects');
+  return response.json();
+};
+
+export const getSubjectById = async (id: string) => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/subjects/${id}`, {
+    credentials: 'include',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
+  if (!response.ok) throw new Error('Failed to fetch subject');
+  return response.json();
+};
+
+export const createSubject = async (subjectData: any) => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/subjects`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    },
+    body: JSON.stringify(subjectData)
+  });
+  if (!response.ok) throw new Error('Failed to create subject');
+  return response.json();
+};
+
+export const updateSubject = async (id: string, subjectData: any) => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/subjects/${id}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': token ? `Bearer ${token}` : ''
+    },
+    body: JSON.stringify(subjectData)
+  });
+  if (!response.ok) throw new Error('Failed to update subject');
+  return response.json();
+};
+
+export const deleteSubject = async (id: string) => {
+  const token = getToken();
+  const response = await fetch(`${API_URL}/subjects/${id}`, {
+    method: 'DELETE',
+    credentials: 'include',
+    headers: {
+      'Authorization': token ? `Bearer ${token}` : ''
+    }
+  });
+  if (!response.ok) throw new Error('Failed to delete subject');
+  return response.json();
+};
+
+// Exam Analytics
+export const getExamAnalytics = async (classFilter?: string, subjectFilter?: string) => {
+  const response = await fetch(
+    `${API_URL}/exam-analytics?class=${classFilter || 'all'}&subject=${subjectFilter || 'all'}`,
+    {
+      credentials: 'include'
+    }
+  );
+  if (!response.ok) throw new Error('Failed to fetch exam analytics');
+  return response.json();
 };
 
 export default api; 

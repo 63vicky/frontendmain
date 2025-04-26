@@ -3,7 +3,7 @@ const dotenv = require('dotenv');
 const users = [
   // Principal
   {
-    
+    id: 1,
     name: 'Principal John Doe',
     email: 'principal@example.com',
     password: 'principal123',
@@ -12,7 +12,7 @@ const users = [
   },
   // Teachers
   {
-    
+    id: 2,
     name: 'Math Teacher',
     email: 'math.teacher@example.com',
     password: 'teacher123',
@@ -22,7 +22,7 @@ const users = [
     status: 'active'
   },
   {
-    
+    id: 3,
     name: 'Science Teacher',
     email: 'science.teacher@example.com',
     password: 'teacher123',
@@ -32,7 +32,7 @@ const users = [
     status: 'active'
   },
   {
-    
+    id: 4,
     name: 'English Teacher',
     email: 'english.teacher@example.com',
     password: 'teacher123',
@@ -43,7 +43,7 @@ const users = [
   },
   // Students
   {
-    
+    id: 5,
     name: 'Student Alice',
     email: 'alice.student@example.com',
     password: 'student123',
@@ -53,7 +53,7 @@ const users = [
     status: 'active'
   },
   {
-    
+    id: 6,
     name: 'Student Bob',
     email: 'bob.student@example.com',
     password: 'student123',
@@ -63,7 +63,7 @@ const users = [
     status: 'active'
   },
   {
-    
+    id: 7,
     name: 'Student Carol',
     email: 'carol.student@example.com',
     password: 'student123',

@@ -10,6 +10,8 @@ const examRoutes = require('./routes/examRoutes');
 const resultRoutes = require('./routes/resultRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const classRoutes = require('./routes/classRoutes');
+const subjectRoutes = require('./routes/subjectRoutes');
+const examAnalyticsRoutes = require('./routes/examAnalyticsRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -39,6 +41,8 @@ app.use('/api/exams', examRoutes);
 app.use('/api/results', resultRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/classes', classRoutes);
+app.use('/api/subjects', subjectRoutes);
+app.use('/api/exam-analytics', examAnalyticsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

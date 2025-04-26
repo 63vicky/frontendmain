@@ -1,107 +1,134 @@
-// In a real app, this would be a database model
-let subjects = [
-  { id: 1, name: 'Mathematics', code: 'MATH101', classId: 1 },
-  { id: 2, name: 'Science', code: 'SCI101', classId: 1 },
-  { id: 3, name: 'English', code: 'ENG101', classId: 1 }
-];
+const Subject = require('../models/Subject');
+const User = require('../models/User');
 
-const getSubjects = async (req, res) => {
+// Get all subjects
+exports.getAllSubjects = async (req, res) => {
   try {
+    const subjects = await Subject.find()
+      .populate('teacher', 'name email')
+      .sort({ createdAt: -1 });
     res.json(subjects);
   } catch (error) {
-    console.error('Get subjects error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: error.message });
   }
 };
 
-const getSubjectById = async (req, res) => {
+// Get subject by ID
+exports.getSubjectById = async (req, res) => {
   try {
-    const { id } = req.params;
-    const subject = subjects.find(s => s.id === parseInt(id));
-    
+    const subject = await Subject.findById(req.params.id)
+      .populate('teacher', 'name email');
+    if (!subject) {
+      return res.status(404).json({ message: 'Subject not found' });
+    }
+    res.json(subject);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Create new subject
+exports.createSubject = async (req, res) => {
+  try {
+    const { name, code, description, teacher, classes } = req.body;
+
+    // Check if subject with same name or code exists
+    const existingSubject = await Subject.findOne({
+      $or: [{ name }, { code }]
+    });
+
+    if (existingSubject) {
+      return res.status(400).json({
+        message: 'Subject with this name or code already exists'
+      });
+    }
+
+    // If teacher is provided, verify they exist and are a teacher
+    if (teacher) {
+      const teacherUser = await User.findOne({ _id: teacher, role: 'teacher' });
+      if (!teacherUser) {
+        return res.status(400).json({ message: 'Invalid teacher ID' });
+      }
+    }
+
+    const subject = new Subject({
+      name,
+      code,
+      description,
+      teacher,
+      classes: classes || []
+    });
+
+    const savedSubject = await subject.save();
+    res.status(201).json(savedSubject);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update subject
+exports.updateSubject = async (req, res) => {
+  try {
+    const { name, code, description, teacher, classes, status } = req.body;
+
+    // Check if subject exists
+    const subject = await Subject.findById(req.params.id);
     if (!subject) {
       return res.status(404).json({ message: 'Subject not found' });
     }
 
-    res.json(subject);
-  } catch (error) {
-    console.error('Get subject by id error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
+    // Check for duplicate name/code if they're being changed
+    if (name !== subject.name || code !== subject.code) {
+      const existingSubject = await Subject.findOne({
+        _id: { $ne: req.params.id },
+        $or: [{ name }, { code }]
+      });
 
-const createSubject = async (req, res) => {
-  try {
-    const { name, code, classId } = req.body;
-    
-    // Validate required fields
-    if (!name || !code || !classId) {
-      return res.status(400).json({ message: 'Missing required fields' });
+      if (existingSubject) {
+        return res.status(400).json({
+          message: 'Subject with this name or code already exists'
+        });
+      }
     }
 
-    // Create new subject
-    const newSubject = {
-      id: subjects.length + 1,
-      name,
-      code,
-      classId
-    };
+    // If teacher is provided, verify they exist and are a teacher
+    if (teacher) {
+      const teacherUser = await User.findOne({ _id: teacher, role: 'teacher' });
+      if (!teacherUser) {
+        return res.status(400).json({ message: 'Invalid teacher ID' });
+      }
+    }
 
-    subjects.push(newSubject);
-    res.status(201).json(newSubject);
+    const updatedSubject = await Subject.findByIdAndUpdate(
+      req.params.id,
+      {
+        name,
+        code,
+        description,
+        teacher,
+        classes: classes || subject.classes,
+        status
+      },
+      { new: true }
+    ).populate('teacher', 'name email');
+
+    res.json(updatedSubject);
   } catch (error) {
-    console.error('Create subject error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: error.message });
   }
 };
 
-const updateSubject = async (req, res) => {
+// Delete subject
+exports.deleteSubject = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { name, code, classId } = req.body;
-    
-    const subjectIndex = subjects.findIndex(s => s.id === parseInt(id));
-    if (subjectIndex === -1) {
+    const subject = await Subject.findById(req.params.id);
+    if (!subject) {
       return res.status(404).json({ message: 'Subject not found' });
     }
 
-    // Update subject
-    subjects[subjectIndex] = {
-      ...subjects[subjectIndex],
-      name: name || subjects[subjectIndex].name,
-      code: code || subjects[subjectIndex].code,
-      classId: classId || subjects[subjectIndex].classId
-    };
-
-    res.json(subjects[subjectIndex]);
-  } catch (error) {
-    console.error('Update subject error:', error);
-    res.status(500).json({ message: 'Internal server error' });
-  }
-};
-
-const deleteSubject = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const subjectIndex = subjects.findIndex(s => s.id === parseInt(id));
-    
-    if (subjectIndex === -1) {
-      return res.status(404).json({ message: 'Subject not found' });
-    }
-
-    // Remove subject
-    subjects.splice(subjectIndex, 1);
+    await Subject.findByIdAndDelete(req.params.id);
     res.json({ message: 'Subject deleted successfully' });
   } catch (error) {
-    console.error('Delete subject error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    res.status(500).json({ message: error.message });
   }
-};
-
-module.exports = {
-  getSubjects,
-  getSubjectById,
-  createSubject,
-  updateSubject,
-  deleteSubject
 }; 
