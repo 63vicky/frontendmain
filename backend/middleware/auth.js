@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const { users } = require('../demo-users');
+const User = require('../models/User');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -15,17 +15,15 @@ const authenticate = async (req, res, next) => {
     }
     
     if (!token) {
-      
       return res.status(401).json({ message: 'No token, authorization denied' });
     }
 
     try {
       const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
       
-      
-      const user = users.find(u => u.id === decoded.id);
+      // Find user in database using id from token
+      const user = await User.findById(decoded.id);
       if (!user) {
-        
         return res.status(401).json({ message: 'User not found' });
       }
 
@@ -47,10 +45,10 @@ const authorize = (...roles) => {
     if (!req.user) {
       return res.status(401).json({ message: 'User not authenticated' });
     }
-
+    
     // Convert both the user role and allowed roles to lowercase for case-insensitive comparison
-    const userRole = req.user.role.toLowerCase();
-    const allowedRoles = roles.map(role => role.toLowerCase());
+    const userRole = String(req.user.role).toLowerCase();
+    const allowedRoles = roles.map(role => String(role).toLowerCase());
 
     if (!allowedRoles.includes(userRole)) {
       return res.status(403).json({ 

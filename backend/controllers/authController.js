@@ -1,4 +1,5 @@
-const { users } = require('../demo-users');
+const bcryptjs = require('bcryptjs');
+const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 
 const login = async (req, res) => {
@@ -6,16 +7,18 @@ const login = async (req, res) => {
     const { email, password } = req.body;
     
     // Find user by email
-    const user = users.find(u => u.email === email);
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    const isPasswordValid = await bcryptjs.compare(password, user.password);
+
     // Check password (in real app, use proper password hashing)
-    if (user.password !== password) {
+    if (!isPasswordValid) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
-
+    
     // Generate JWT token
     const token = jwt.sign(
       { 
@@ -36,6 +39,7 @@ const login = async (req, res) => {
     });
 
     res.json({
+      token: token,
       user: {
         id: user.id,
         email: user.email,

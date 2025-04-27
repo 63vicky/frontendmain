@@ -1,11 +1,8 @@
 "use client"
 
 import { Input } from "@/components/ui/input"
-
 import { Label } from "@/components/ui/label"
-
 import type React from "react"
-
 import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +10,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import DashboardLayout from "@/components/dashboard-layout"
 import UserManagement from "@/components/user-management"
 import ExamManagement from "@/components/exam-management"
+import { QuestionDialog } from "@/components/question-dialog"
 import { useSearchParams, useRouter } from "next/navigation"
+import { dashboardService } from "@/lib/services/dashboard"
+import { authService } from "@/lib/services/auth"
+import { DashboardStats, RecentExam, Exam } from "@/lib/types"
+import { Loader2, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function TeacherDashboard() {
   return (
@@ -25,8 +29,46 @@ export default function TeacherDashboard() {
 
 function TeacherDashboardContent() {
   const [activeTab, setActiveTab] = useState("overview")
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [recentExams, setRecentExams] = useState<RecentExam[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedExam, setSelectedExam] = useState<Exam | null>(null)
+  const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      const user = authService.getCurrentUser()
+      if (!user || user.role !== "teacher") {
+        router.push("/login")
+        return
+      }
+
+      const [statsData, recentExamsData] = await Promise.all([
+        dashboardService.getTeacherDashboardStats(user.id),
+        dashboardService.getTeacherRecentExams(user.id)
+      ])
+
+      setStats(statsData)
+      setRecentExams(recentExamsData)
+    } catch (err) {
+      console.error('Dashboard data fetch error:', err)
+      setError("Failed to load dashboard data")
+      toast({
+        title: "Error",
+        description: "Failed to load dashboard data. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
     const tab = searchParams.get("tab")
@@ -35,9 +77,51 @@ function TeacherDashboardContent() {
     }
   }, [searchParams])
 
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
   const handleTabChange = (value: string) => {
     setActiveTab(value)
     router.push(`/dashboard/teacher?tab=${value}`, { scroll: false })
+  }
+
+  const handleAddQuestion = (exam: Exam) => {
+    setSelectedExam(exam)
+    setIsQuestionDialogOpen(true)
+  }
+
+  const handleQuestionSuccess = () => {
+    fetchDashboardData()
+  }
+
+  const handleDialogClose = () => {
+    setIsQuestionDialogOpen(false)
+    setSelectedExam(null)
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout role="teacher">
+        <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout role="teacher">
+        <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)]">
+          <AlertCircle className="h-8 w-8 text-red-500 mb-4" />
+          <p className="text-red-500 mb-4">{error}</p>
+          <Button onClick={fetchDashboardData}>
+            Try Again
+          </Button>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -61,7 +145,7 @@ function TeacherDashboardContent() {
                   <CardTitle className="text-sm font-medium">My Students</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">86</div>
+                  <div className="text-2xl font-bold">{stats?.totalStudents || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -69,7 +153,7 @@ function TeacherDashboardContent() {
                   <CardTitle className="text-sm font-medium">Active Exams</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">4</div>
+                  <div className="text-2xl font-bold">{stats?.activeExams || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -77,7 +161,7 @@ function TeacherDashboardContent() {
                   <CardTitle className="text-sm font-medium">Completed Exams</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">12</div>
+                  <div className="text-2xl font-bold">{stats?.completedExams || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -85,7 +169,7 @@ function TeacherDashboardContent() {
                   <CardTitle className="text-sm font-medium">Avg. Score</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">76%</div>
+                  <div className="text-2xl font-bold">{stats?.averageScore || 0}%</div>
                 </CardContent>
               </Card>
             </div>
@@ -98,25 +182,30 @@ function TeacherDashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {[
-                      { name: "Class 8 Mathematics - Chapter 2", date: "Today", status: "Active" },
-                      { name: "Class 8 Science - Quiz 3", date: "Yesterday", status: "Completed" },
-                      { name: "Class 8 English - Grammar Test", date: "3 days ago", status: "Active" },
-                      { name: "Class 8 History - Chapter 4", date: "5 days ago", status: "Completed" },
-                    ].map((exam, i) => (
-                      <div key={i} className="flex items-center justify-between border-b pb-2">
-                        <div>
-                          <p className="font-medium">{exam.name}</p>
-                          <p className="text-sm text-muted-foreground">{exam.date}</p>
+                    {recentExams.length === 0 ? (
+                      <div className="text-center py-4 text-muted-foreground">No recent exams found</div>
+                    ) : (
+                      recentExams.map((exam) => (
+                        <div key={exam.id} className="flex items-center justify-between border-b pb-2">
+                          <div>
+                            <p className="font-medium">{exam.name}</p>
+                            <p className="text-sm text-muted-foreground">{exam.date}</p>
+                          </div>
+                          <span className={`text-sm ${
+                            exam.status === "Active" 
+                              ? "text-green-600" 
+                              : exam.status === "Completed" 
+                                ? "text-blue-600"
+                                : "text-yellow-600"
+                          }`}>
+                            {exam.status}
+                          </span>
                         </div>
-                        <span className={`text-sm ${exam.status === "Active" ? "text-green-600" : "text-blue-600"}`}>
-                          {exam.status}
-                        </span>
-                      </div>
-                    ))}
+                      ))
+                    )}
                   </div>
-                  <Button variant="outline" className="w-full mt-4">
-                    View All Exams
+                  <Button variant="outline" className="w-full mt-4" asChild>
+                    <Link href="/dashboard/teacher?tab=exams">View All Exams</Link>
                   </Button>
                 </CardContent>
               </Card>
@@ -128,13 +217,8 @@ function TeacherDashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {[
-                      { name: "Alex Johnson", score: 92 },
-                      { name: "Maria Garcia", score: 88 },
-                      { name: "James Wilson", score: 85 },
-                      { name: "Sarah Chen", score: 82 },
-                    ].map((student, i) => (
-                      <div key={i} className="flex items-center justify-between">
+                    {stats?.topStudents?.map((student, index) => (
+                      <div key={student.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center">
                             {student.name.charAt(0)}
@@ -145,8 +229,8 @@ function TeacherDashboardContent() {
                       </div>
                     ))}
                   </div>
-                  <Button variant="outline" className="w-full mt-4">
-                    View All Students
+                  <Button variant="outline" className="w-full mt-4" asChild>
+                    <Link href="/dashboard/teacher?tab=students">View All Students</Link>
                   </Button>
                 </CardContent>
               </Card>
@@ -154,7 +238,7 @@ function TeacherDashboardContent() {
           </TabsContent>
 
           <TabsContent value="exams" className="pt-4">
-            <ExamManagement />
+            <ExamManagement onAddQuestion={handleAddQuestion} />
           </TabsContent>
 
           <TabsContent value="create" className="pt-4">
@@ -173,12 +257,20 @@ function TeacherDashboardContent() {
             <UserManagement userType="student" teacherView={true} />
           </TabsContent>
         </Tabs>
+
+        {/* Question Dialog */}
+        <QuestionDialog
+          exam={selectedExam}
+          open={isQuestionDialogOpen}
+          onOpenChange={handleDialogClose}
+          onSuccess={handleQuestionSuccess}
+        />
       </div>
     </DashboardLayout>
   )
 }
 
-function CreateExamForm() {
+const CreateExamForm: React.FC = () => {
   const [formData, setFormData] = useState({
     title: "",
     subject: "",
@@ -189,21 +281,112 @@ function CreateExamForm() {
     endDate: "",
     attempts: 5,
   })
-
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
+  const router = useRouter()
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validateForm = () => {
+    if (!formData.title || !formData.subject || !formData.class || !formData.chapter) {
+      setError("All fields are required")
+      return false
+    }
+
+    if (formData.duration < 5 || formData.duration > 180) {
+      setError("Duration must be between 5 and 180 minutes")
+      return false
+    }
+
+    if (formData.attempts < 1 || formData.attempts > 5) {
+      setError("Maximum attempts must be between 1 and 5")
+      return false
+    }
+
+    if (!formData.startDate || !formData.endDate) {
+      setError("Start and end dates are required")
+      return false
+    }
+
+    const startDate = new Date(formData.startDate)
+    const endDate = new Date(formData.endDate)
+
+    if (endDate <= startDate) {
+      setError("End date must be after start date")
+      return false
+    }
+
+    return true
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle form submission
-    console.log("Form submitted:", formData)
-    // In a real app, you would save this to your database
+    setError(null)
+
+    if (!validateForm()) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await fetch(`${API_URL}/api/exams`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(formData)
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create exam')
+      }
+
+      toast({
+        title: "Success",
+        description: "Exam created successfully",
+      })
+
+      // Reset form
+      setFormData({
+        title: "",
+        subject: "",
+        class: "",
+        chapter: "",
+        duration: 60,
+        startDate: "",
+        endDate: "",
+        attempts: 5,
+      })
+
+      // Redirect to exams tab
+      router.push('/dashboard/teacher?tab=exams')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create exam')
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to create exam',
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="title">Exam Title</Label>
@@ -295,16 +478,30 @@ function CreateExamForm() {
 
         <div className="space-y-2">
           <Label htmlFor="endDate">End Date</Label>
-          <Input id="endDate" name="endDate" type="date" value={formData.endDate} onChange={handleChange} required />
+          <Input
+            id="endDate"
+            name="endDate"
+            type="date"
+            value={formData.endDate}
+            onChange={handleChange}
+            required
+          />
         </div>
       </div>
 
       <div className="pt-4">
-        <Button type="submit" className="mr-2">
-          Continue to Add Questions
+        <Button type="submit" className="mr-2" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            'Create Exam'
+          )}
         </Button>
-        <Button type="button" variant="outline">
-          Save as Draft
+        <Button type="button" variant="outline" onClick={() => router.push('/dashboard/teacher?tab=exams')}>
+          Cancel
         </Button>
       </div>
     </form>

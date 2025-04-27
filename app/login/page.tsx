@@ -37,7 +37,7 @@ function LoginContent() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
-  
+
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword)
   }
@@ -63,7 +63,7 @@ function LoginContent() {
 
     try {
       const { token, user } = await authService.login(formData.email, formData.password, formData.role)
-      
+
       // Verify that the selected role matches the user's actual role
       if (user.role !== formData.role) {
         throw new Error(`Please login as ${user.role}`)
@@ -156,16 +156,16 @@ function LoginContent() {
                     required
                     value={formData.password}
                     onChange={handleChange}
-                  className="border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={togglePasswordVisibility}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 hover:bg-transparent"
-                >
-                  {showPassword ? <EyeOff /> : <Eye />}
-                </Button>
+                    className="border-slate-300 dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={togglePasswordVisibility}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 hover:bg-transparent"
+                  >
+                    {showPassword ? <EyeOff /> : <Eye />}
+                  </Button>
                 </div>
               </div>
               <div className="space-y-2">
@@ -178,26 +178,22 @@ function LoginContent() {
                   {["student", "teacher", "principal"].map((role) => (
                     <div
                       key={role}
-                      className={`flex items-center space-x-2 p-3 rounded-md border ${
-                        formData.role === role
+                      className={`flex items-center space-x-2 rounded-md border cursor-pointer ${formData.role === role
                           ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-400"
                           : "border-slate-200 dark:border-slate-700"
-                      }`}
+                        }`}
                     >
-                      <RadioGroupItem value={role} id={role} className="text-indigo-600 dark:text-indigo-400" />
-                      <div className="flex items-center gap-2 flex-1">
-                        {getRoleIcon(role)}
-                        <Label
-                          htmlFor={role}
-                          className={`capitalize font-medium ${
-                            formData.role === role
-                              ? "text-indigo-700 dark:text-indigo-300"
-                              : "text-slate-700 dark:text-slate-300"
+                      <Label
+                        htmlFor={role}
+                        className={`capitalize font-medium cursor-pointer flex items-center gap-2 flex-1  p-3 w-full ${formData.role === role
+                            ? "text-indigo-700 dark:text-indigo-300"
+                            : "text-slate-700 dark:text-slate-300"
                           }`}
-                        >
-                          {role}
-                        </Label>
-                      </div>
+                      >
+                        <RadioGroupItem value={role} id={role} className="text-indigo-600 dark:text-indigo-400 cursor-pointer" />
+                        {getRoleIcon(role)}
+                        {role}
+                      </Label>
                     </div>
                   ))}
                 </RadioGroup>

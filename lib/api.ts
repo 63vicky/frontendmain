@@ -1,37 +1,227 @@
 import axios from 'axios';
 import { getToken } from './utils';
+import { User, Exam, Result, DashboardStats, RecentExam, ClassPerformance } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true // Enable cookies
-});
+interface RequestOptions {
+  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  body?: any;
+  headers?: Record<string, string>;
+  credentials?: RequestCredentials;
+}
 
-// Add token to requests if it exists
-api.interceptors.request.use((config) => {
-  const token = getToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+interface LoginCredentials {
+  email: string;
+  password: string;
+  role: 'principal' | 'teacher' | 'student';
+}
 
-// Handle response errors
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      document.cookie = 'token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-      window.location.href = '/login';
+interface LoginResponse {
+  token: string;
+  user: User;
+}
+
+interface RegisterResponse {
+  token: string;
+  user: User;
+}
+
+interface ApiResponse<T> {
+  data: T;
+  status: number;
+  statusText: string;
+  headers: Headers;
+}
+
+// Create a fetch-based API client that mimics axios interface
+const apiClient = {
+  async request<T>(config: { url: string; method?: string; data?: any; headers?: Record<string, string> }): Promise<ApiResponse<T>> {
+    const { url, method = 'GET', data, headers = {} } = config;
+
+    try {
+      const response = await fetch(`${API_URL}${url}`, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: 'include',
+      });
+
+      // Check if the response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server response was not JSON');
+      }
+
+      const responseData = await response.json();
+
+      if (!response.ok) {
+        throw new Error(responseData.message || 'Something went wrong');
+      }
+
+      return {
+        data: responseData,
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw error;
+      }
+      throw new Error('An unexpected error occurred');
     }
-    return Promise.reject(error);
+  },
+
+  get<T>(url: string, config?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
+    return this.request<T>({ url, method: 'GET', ...config });
+  },
+
+  post<T>(url: string, data?: any, config?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
+    return this.request<T>({ url, method: 'POST', data, ...config });
+  },
+
+  put<T>(url: string, data?: any, config?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
+    return this.request<T>({ url, method: 'PUT', data, ...config });
+  },
+
+  delete<T>(url: string, config?: { headers?: Record<string, string> }): Promise<ApiResponse<T>> {
+    return this.request<T>({ url, method: 'DELETE', ...config });
+  },
+};
+
+// Create a fetch-based API utility
+async function fetchWithAuth<T>(url: string, options: RequestOptions = {}): Promise<T> {
+  const defaultOptions: RequestOptions = {
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  };
+
+  try {
+    const response = await fetch(`${API_URL}${url}`, {
+      ...defaultOptions,
+      ...options,
+      headers: {
+        ...defaultOptions.headers,
+        ...options.headers,
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+
+    // Check if the response is JSON
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      throw new Error('Server response was not JSON');
+    }
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || 'Something went wrong');
+    }
+
+    return data;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw error;
+    }
+    throw new Error('An unexpected error occurred');
   }
-);
+}
+
+// Export both the axios-style client and the fetch-based API
+export const api = {
+  // Axios-style methods
+  get: <T>(url: string, config?: any) => apiClient.get<T>(url, config),
+  post: <T>(url: string, data?: any, config?: any) => apiClient.post<T>(url, data, config),
+  put: <T>(url: string, data?: any, config?: any) => apiClient.put<T>(url, data, config),
+  delete: <T>(url: string, config?: any) => apiClient.delete<T>(url, config),
+
+  // Auth endpoints
+  auth: {
+    login: (credentials: LoginCredentials) =>
+      fetchWithAuth<LoginResponse>('/auth/login', {
+        method: 'POST',
+        body: credentials,
+      }),
+    register: (userData: any) =>
+      fetchWithAuth<RegisterResponse>('/auth/register', {
+        method: 'POST',
+        body: userData,
+      }),
+    logout: () =>
+      fetchWithAuth('/auth/logout', {
+        method: 'POST',
+      }),
+    refreshToken: () =>
+      fetchWithAuth('/auth/refresh-token', {
+        method: 'POST',
+      }),
+  },
+
+  // Exam endpoints
+  exams: {
+    getAll: () => fetchWithAuth<Exam[]>('/exams'),
+    getById: (id: string) => fetchWithAuth<Exam>(`/exams/${id}`),
+    create: (examData: any) =>
+      fetchWithAuth<Exam>('/exams', {
+        method: 'POST',
+        body: examData,
+      }),
+    update: (id: string, examData: any) =>
+      fetchWithAuth<Exam>(`/exams/${id}`, {
+        method: 'PUT',
+        body: examData,
+      }),
+    delete: (id: string) =>
+      fetchWithAuth(`/exams/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  // Results endpoints
+  results: {
+    getAll: () => fetchWithAuth<Result[]>('/results'),
+    getById: (id: string) => fetchWithAuth<Result>(`/results/${id}`),
+    create: (resultData: any) =>
+      fetchWithAuth<Result>('/results', {
+        method: 'POST',
+        body: resultData,
+      }),
+    update: (id: string, resultData: any) =>
+      fetchWithAuth<Result>(`/results/${id}`, {
+        method: 'PUT',
+        body: resultData,
+      }),
+  },
+
+  // User endpoints
+  users: {
+    getAll: () => fetchWithAuth<User[]>('/users'),
+    getById: (id: string) => fetchWithAuth<User>(`/users/${id}`),
+    update: (id: string, userData: any) =>
+      fetchWithAuth<User>(`/users/${id}`, {
+        method: 'PUT',
+        body: userData,
+      }),
+    delete: (id: string) =>
+      fetchWithAuth(`/users/${id}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  // Dashboard endpoints
+  dashboard: {
+    getStats: () => fetchWithAuth<DashboardStats>('/dashboard/stats'),
+    getRecentExams: () => fetchWithAuth<RecentExam[]>('/dashboard/recent-exams'),
+    getClassPerformance: () => fetchWithAuth<ClassPerformance[]>('/dashboard/class-performance'),
+  },
+};
 
 // Teacher Management APIs
 export const teacherApi = {

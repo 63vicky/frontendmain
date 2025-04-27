@@ -1,3 +1,6 @@
+const Exam = require('../models/exam');
+const { validateExam } = require('../utils/validators');
+
 // In a real app, this would be a database model
 let exams = [
   {
@@ -51,104 +54,170 @@ const getExamById = async (req, res) => {
 
 const createExam = async (req, res) => {
   try {
-    const { 
-      title, 
-      subjectId, 
-      classId, 
-      date, 
-      duration, 
-      totalMarks, 
-      instructions 
-    } = req.body;
+    const { title, subject, class: className, chapter, duration, startDate, endDate, attempts } = req.body;
     
-    // Validate required fields
-    if (!title || !subjectId || !classId || !date || !duration || !totalMarks) {
-      return res.status(400).json({ message: 'Missing required fields' });
+    // Validate exam data
+    const validationError = validateExam(req.body);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
     }
 
     // Create new exam
-    const newExam = {
-      id: exams.length + 1,
+    const exam = new Exam({
       title,
-      subjectId,
-      classId,
-      date,
+      subject,
+      class: className,
+      chapter,
       duration,
-      totalMarks,
-      instructions: instructions || '',
-      createdBy: req.user.id
-    };
+      startDate,
+      endDate,
+      attempts: {
+        max: attempts
+      },
+      createdBy: req.user._id
+    });
 
-    exams.push(newExam);
-    res.status(201).json(newExam);
+    await exam.save();
+
+    res.status(201).json({
+      success: true,
+      data: exam
+    });
   } catch (error) {
-    console.error('Create exam error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error creating exam:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create exam'
+    });
+  }
+};
+
+const getTeacherExams = async (req, res) => {
+  try {
+    const exams = await Exam.find({ createdBy: req.user._id })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      data: exams
+    });
+  } catch (error) {
+    console.error('Error fetching exams:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch exams'
+    });
+  }
+};
+
+const getExam = async (req, res) => {
+  try {
+    const exam = await Exam.findById(req.params.id)
+      .populate('questions');
+
+    if (!exam) {
+      return res.status(404).json({
+        success: false,
+        error: 'Exam not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: exam
+    });
+  } catch (error) {
+    console.error('Error fetching exam:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch exam'
+    });
   }
 };
 
 const updateExam = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { 
-      title, 
-      subjectId, 
-      classId, 
-      date, 
-      duration, 
-      totalMarks, 
-      instructions 
-    } = req.body;
+    const { title, subject, class: className, chapter, duration, startDate, endDate, attempts } = req.body;
     
-    const examIndex = exams.findIndex(e => e.id === parseInt(id));
-    if (examIndex === -1) {
-      return res.status(404).json({ message: 'Exam not found' });
+    // Validate exam data
+    const validationError = validateExam(req.body);
+    if (validationError) {
+      return res.status(400).json({ error: validationError });
     }
 
-    // Check if user is authorized to update this exam
-    if (exams[examIndex].createdBy !== req.user.id && req.user.role !== 'principal') {
-      return res.status(403).json({ message: 'Not authorized to update this exam' });
+    const exam = await Exam.findById(req.params.id);
+
+    if (!exam) {
+      return res.status(404).json({
+        success: false,
+        error: 'Exam not found'
+      });
     }
 
-    // Update exam
-    exams[examIndex] = {
-      ...exams[examIndex],
-      title: title || exams[examIndex].title,
-      subjectId: subjectId || exams[examIndex].subjectId,
-      classId: classId || exams[examIndex].classId,
-      date: date || exams[examIndex].date,
-      duration: duration || exams[examIndex].duration,
-      totalMarks: totalMarks || exams[examIndex].totalMarks,
-      instructions: instructions || exams[examIndex].instructions
-    };
+    // Check if user is the creator of the exam
+    if (exam.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to update this exam'
+      });
+    }
 
-    res.json(exams[examIndex]);
+    // Update exam fields
+    exam.title = title;
+    exam.subject = subject;
+    exam.class = className;
+    exam.chapter = chapter;
+    exam.duration = duration;
+    exam.startDate = startDate;
+    exam.endDate = endDate;
+    exam.attempts.max = attempts;
+
+    await exam.save();
+
+    res.status(200).json({
+      success: true,
+      data: exam
+    });
   } catch (error) {
-    console.error('Update exam error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error updating exam:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update exam'
+    });
   }
 };
 
 const deleteExam = async (req, res) => {
   try {
-    const { id } = req.params;
-    const examIndex = exams.findIndex(e => e.id === parseInt(id));
-    
-    if (examIndex === -1) {
-      return res.status(404).json({ message: 'Exam not found' });
+    const exam = await Exam.findById(req.params.id);
+
+    if (!exam) {
+      return res.status(404).json({
+        success: false,
+        error: 'Exam not found'
+      });
     }
 
-    // Check if user is authorized to delete this exam
-    if (exams[examIndex].createdBy !== req.user.id && req.user.role !== 'principal') {
-      return res.status(403).json({ message: 'Not authorized to delete this exam' });
+    // Check if user is the creator of the exam
+    if (exam.createdBy.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Not authorized to delete this exam'
+      });
     }
 
-    // Remove exam
-    exams.splice(examIndex, 1);
-    res.json({ message: 'Exam deleted successfully' });
+    await exam.remove();
+
+    res.status(200).json({
+      success: true,
+      data: {}
+    });
   } catch (error) {
-    console.error('Delete exam error:', error);
-    res.status(500).json({ message: 'Internal server error' });
+    console.error('Error deleting exam:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete exam'
+    });
   }
 };
 
@@ -192,6 +261,8 @@ module.exports = {
   getExams,
   getExamById,
   createExam,
+  getTeacherExams,
+  getExam,
   updateExam,
   deleteExam,
   getExamResults

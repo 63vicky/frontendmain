@@ -291,13 +291,12 @@ function DashboardContent({
               <span className="text-sm text-slate-500 dark:text-slate-400">Theme</span>
               <ThemeToggle />
             </div>
-            <Link
-              href="/login"
-              className="flex items-center px-4 py-3 text-red-500 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700"
+            <Button variant="outline" onClick={handleLogout}
+              className="w-full flex items-center px-4 py-3 text-red-500 dark:text-red-400 hover:bg-slate-100 dark:hover:bg-slate-700"
             >
               <LogOut className="h-5 w-5 mr-3" />
               <span className="font-medium">Logout</span>
-            </Link>
+            </Button>
           </div>
         </div>
       )}

@@ -1,49 +1,67 @@
 // User types
 export interface User {
   id: string
+  _id: string
   name: string
   email: string
-  role: "principal" | "teacher" | "student"
-  status: "active" | "inactive"
+  role: 'principal' | 'teacher' | 'student' | 'admin'
+  class?: string
+  subjects?: string[]
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Teacher extends User {
-  role: "teacher"
+  role: 'teacher'
   subject: string
   classes: string[]
 }
 
 export interface Student extends User {
-  role: "student"
+  role: 'student'
   class: string
   rollNo: string
 }
 
 // Exam types
 export interface Exam {
-  id: string
+  _id: string
   title: string
   subject: string
   class: string
   chapter: string
-  duration: number // in minutes
+  status: 'draft' | 'scheduled' | 'active' | 'completed' | 'archived'
   startDate: string
   endDate: string
-  maxAttempts: number
-  status: "draft" | "scheduled" | "active" | "completed" | "archived"
-  createdBy: string // teacher ID
+  duration: number
+  attempts: {
+    current: number
+    max: number
+  }
+  avgScore?: number
+  questions?: Question[]
+  createdBy: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface Question {
-  id: string
-  examId: string
+  _id: string
   text: string
-  options: {
-    id: string
-    text: string
-  }[]
-  correctAnswer: string
-  category?: string // For categorizing questions (e.g., Algebra, Geometry)
+  type: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay'
+  options?: string[]
+  correctAnswer: string | string[]
+  points: number
+  difficulty: 'easy' | 'medium' | 'hard'
+  time: number
+  subject: string
+  class: string
+  chapter: string
+  tags?: string[]
+  examIds: string[]
+  createdBy: string
+  createdAt: string
+  updatedAt: string
 }
 
 export interface ExamAttempt {
@@ -97,6 +115,11 @@ export interface DashboardStats {
   totalSubjects?: number
   upcomingExams?: number
   averageScore?: number
+  topStudents?: Array<{
+    id: string
+    name: string
+    score: number
+  }>
 }
 
 export interface RecentExam {
@@ -118,4 +141,24 @@ export interface ClassPerformance {
     subject: string
     averageScore: number
   }[]
+}
+
+export interface Result {
+  _id: string
+  examId: string
+  studentId: string
+  score: number
+  answers: {
+    questionId: string
+    answer: string | string[]
+    isCorrect: boolean
+    points: number
+  }[]
+  startedAt: string
+  submittedAt: string
+  status: 'in-progress' | 'completed' | 'graded'
+  feedback?: string
+  createdBy: string
+  createdAt: string
+  updatedAt: string
 }

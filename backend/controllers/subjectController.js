@@ -7,7 +7,7 @@ exports.getAllSubjects = async (req, res) => {
     const subjects = await Subject.find()
       .populate('teacher', 'name email')
       .sort({ createdAt: -1 });
-    res.json(subjects);
+    res.json({data: subjects});
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

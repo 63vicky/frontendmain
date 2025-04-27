@@ -1,25 +1,31 @@
 const mongoose = require('mongoose');
 
-const examSchema = new mongoose.Schema({
+// Check if the model already exists
+const Exam = mongoose.models.Exam || mongoose.model('Exam', new mongoose.Schema({
   title: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   subject: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   class: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   chapter: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
-  duration: {
-    type: Number, // in minutes
-    required: true
+  status: {
+    type: String,
+    enum: ['draft', 'scheduled', 'active', 'completed', 'archived'],
+    default: 'draft'
   },
   startDate: {
     type: Date,
@@ -29,39 +35,47 @@ const examSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
-  maxAttempts: {
+  duration: {
     type: Number,
     required: true,
-    default: 1
+    min: 5,
+    max: 180
   },
-  status: {
-    type: String,
-    enum: ['draft', 'scheduled', 'active', 'completed', 'archived'],
-    default: 'draft'
-  },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
+  attempts: {
+    current: {
+      type: Number,
+      default: 0
+    },
+    max: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5
+    }
   },
   questions: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Question'
   }],
-  totalMarks: {
-    type: Number,
-    required: true
-  },
-  passingMarks: {
-    type: Number,
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
     required: true
   }
 }, {
   timestamps: true
+}));
+
+// Validate that endDate is after startDate
+Exam.schema.pre('save', function(next) {
+  if (this.endDate <= this.startDate) {
+    next(new Error('End date must be after start date'));
+  }
+  next();
 });
 
 // Index for efficient querying
-examSchema.index({ status: 1, startDate: 1, endDate: 1 });
-examSchema.index({ createdBy: 1, status: 1 });
+Exam.schema.index({ status: 1, startDate: 1, endDate: 1 });
+Exam.schema.index({ createdBy: 1, status: 1 });
 
-module.exports = mongoose.model('Exam', examSchema); 
+module.exports = Exam; 

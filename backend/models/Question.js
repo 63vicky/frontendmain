@@ -1,38 +1,58 @@
 const mongoose = require('mongoose');
 
-const questionSchema = new mongoose.Schema({
-  examId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Exam',
-    required: true
-  },
+const Question = mongoose.models.Question || mongoose.model('Question', new mongoose.Schema({
   text: {
     type: String,
+    required: true,
+    trim: true
+  },
+  type: {
+    type: String,
+    enum: ['multiple-choice', 'true-false', 'short-answer', 'essay'],
     required: true
   },
   options: [{
-    id: {
-      type: String,
-      required: true
-    },
-    text: {
-      type: String,
-      required: true
-    }
+    type: String,
+    trim: true
   }],
   correctAnswer: {
+    type: mongoose.Schema.Types.Mixed, // Can be string or array depending on question type
+    required: true
+  },
+  points: {
+    type: Number,
+    required: true,
+    min: 1
+  },
+  difficulty: {
+    type: String,
+    enum: ['easy', 'medium', 'hard'],
+    default: 'medium'
+  },
+  time: {
+    type: Number,
+    default: 30 // Default time in seconds
+  },
+  subject: {
     type: String,
     required: true
   },
-  category: {
+  class: {
     type: String,
-    required: false
+    required: true
   },
-  marks: {
-    type: Number,
-    required: true,
-    default: 1
+  chapter: {
+    type: String,
+    required: true
   },
+  tags: [{
+    type: String,
+    trim: true
+  }],
+  examIds: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Exam'
+  }],
   createdBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -40,10 +60,12 @@ const questionSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true
-});
+}));
 
 // Index for efficient querying
-questionSchema.index({ examId: 1 });
-questionSchema.index({ createdBy: 1 });
+Question.schema.index({ examIds: 1 });
+Question.schema.index({ createdBy: 1 });
+Question.schema.index({ subject: 1 });
+Question.schema.index({ class: 1 });
 
-module.exports = mongoose.model('Question', questionSchema); 
+module.exports = Question; 
