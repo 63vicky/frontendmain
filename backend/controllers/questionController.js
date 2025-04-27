@@ -1,5 +1,5 @@
-const Question = require('../models/question');
-const Exam = require('../models/exam');
+const Question = require('../models/Question');
+const Exam = require('../models/Exam');
 const mongoose = require('mongoose');
 
 // Create a new question
