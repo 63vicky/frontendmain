@@ -69,8 +69,8 @@ export default function SubjectManagement() {
 
   const fetchSubjects = async () => {
     try {
-      const data = await getSubjects()
-      setSubjects(data)
+      const response = await getSubjects()
+      setSubjects(response.data || [])
     } catch (error) {
       toast({
         title: "Error",
@@ -109,7 +109,7 @@ export default function SubjectManagement() {
   }
 
   // Filter subjects based on search query
-  const filteredSubjects = subjects.filter(
+  const filteredSubjects = (subjects || []).filter(
     (subject) =>
       subject.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (subject.teacher?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
