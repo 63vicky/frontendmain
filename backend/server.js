@@ -38,6 +38,8 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   exposedHeaders: ['Set-Cookie'],
   maxAge: 86400, // 24 hours
+  sameSite: 'none',
+  secure: process.env.NODE_ENV === 'production'
 };
 
 // Apply CORS middleware

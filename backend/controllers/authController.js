@@ -34,10 +34,13 @@ const login = async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 1 day
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      path: '/'
     });
 
+    // Also send token in response for client-side storage
     res.json({
       token: token,
       user: {
@@ -58,21 +61,24 @@ const register = async (req, res) => {
     const { email, password, name, role } = req.body;
 
     // Check if user already exists
-    if (users.some(u => u.email === email)) {
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Create new user (in real app, hash password)
-    const newUser = {
-      id: users.length + 1,
+    // Hash password
+    const salt = await bcryptjs.genSalt(10);
+    const hashedPassword = await bcryptjs.hash(password, salt);
+
+    // Create new user
+    const newUser = new User({
       email,
-      password,
+      password: hashedPassword,
       name,
       role: role || 'student'
-    };
+    });
 
-    // Add to users array (in real app, save to database)
-    users.push(newUser);
+    await newUser.save();
 
     // Generate JWT token
     const token = jwt.sign(
@@ -89,8 +95,10 @@ const register = async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 1 day
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      path: '/'
     });
 
     res.status(201).json({
@@ -113,7 +121,9 @@ const logout = (req, res) => {
     res.clearCookie('token', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax'
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      domain: process.env.NODE_ENV === 'production' ? process.env.COOKIE_DOMAIN : undefined,
+      path: '/'
     });
     res.json({ message: 'Logged out successfully' });
   } catch (error) {
