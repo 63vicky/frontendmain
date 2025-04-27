@@ -1,4 +1,4 @@
-const Exam = require('../models/exam');
+const Exam = require('../models/Exam');
 const { validateExam } = require('../utils/validators');
 
 // In a real app, this would be a database model
