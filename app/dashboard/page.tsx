@@ -1,5 +1,23 @@
-import ClassManagement from "@/components/class-management"
+import ClassManagement from "@/app/dashboard/principal/classes/page"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-<TabsContent value="classes">
-  <ClassManagement />
-</TabsContent> 
+export default function DashboardPage() {
+  return (
+    <Tabs defaultValue="classes">
+      <TabsList>
+        <TabsTrigger value="classes">Classes</TabsTrigger>
+        <TabsTrigger value="students">Students</TabsTrigger>
+        <TabsTrigger value="teachers">Teachers</TabsTrigger>
+      </TabsList>
+      <TabsContent value="classes">
+        <ClassManagement />
+      </TabsContent>
+      <TabsContent value="students">
+        <div>Students content will go here</div>
+      </TabsContent>
+      <TabsContent value="teachers">
+        <div>Teachers content will go here</div>
+      </TabsContent>
+    </Tabs>
+  )
+} 
