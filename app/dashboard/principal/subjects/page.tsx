@@ -42,6 +42,19 @@ interface Class {
   section: string;
 }
 
+interface Subject {
+  _id: string;
+  name: string;
+  code: string;
+  description: string;
+  teacher?: {
+    _id: string;
+    name: string;
+  };
+  classes: string[];
+  status: 'Active' | 'Inactive';
+}
+
 export default function SubjectManagement() {
   const { toast } = useToast()
   const [searchQuery, setSearchQuery] = useState("")
@@ -58,7 +71,7 @@ export default function SubjectManagement() {
     description: "",
     teacher: "",
     classes: [] as string[],
-    status: "Active" as const
+    status: "Active" as "Active" | "Inactive"
   })
 
   useEffect(() => {
@@ -109,12 +122,12 @@ export default function SubjectManagement() {
   }
 
   // Filter subjects based on search query
-  const filteredSubjects = (subjects || []).filter(
-    (subject) =>
-      subject.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (subject.teacher?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      subject.code.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const filteredSubjects = Array.isArray(subjects) ? subjects.filter(
+    (subject: Subject) =>
+      subject?.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (subject?.teacher?.name || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      subject?.code?.toLowerCase().includes(searchQuery.toLowerCase()),
+  ) : [];
 
   const handleEdit = (subject: any) => {
     setSelectedSubject(subject)
@@ -314,7 +327,21 @@ export default function SubjectManagement() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredSubjects.length === 0 ? (
+                {loading ? (
+                  // Loading skeleton rows
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-6 w-16" /></TableCell>
+                      <TableCell className="text-right">
+                        <Skeleton className="h-8 w-16 ml-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredSubjects.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                       No subjects found

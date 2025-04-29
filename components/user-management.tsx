@@ -612,14 +612,14 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       <div className="col-span-3">
                         {loadingClasses ? (
                           <Skeleton className="h-10 w-full" />
-                        ) : classes.length > 0 ? (
+                        ) : Array.isArray(classes) && classes.length > 0 ? (
                           <Select
                             value={(editData as Student).class}
                             onValueChange={(value) => setEditData({ ...editData, class: value })}
                           >
                             <SelectTrigger>
                               <SelectValue>
-                                {classes.find(cls => cls._id === (editData as Student).class)?.name || "Select class"}
+                                {Array.isArray(classes) && classes.find(cls => cls._id === (editData as Student).class)?.name || "Select class"}
                               </SelectValue>
                             </SelectTrigger>
                             <SelectContent>

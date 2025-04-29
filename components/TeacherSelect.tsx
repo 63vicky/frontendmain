@@ -52,7 +52,7 @@ export function TeacherSelect({ value, onChange, className }: TeacherSelectProps
     loadTeachers()
   }, [toast])
 
-  const selectedTeacher = teachers.find(teacher => teacher._id === value)
+  const selectedTeacher = Array.isArray(teachers) ? teachers.find(teacher => teacher._id === value) : null;
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -79,7 +79,7 @@ export function TeacherSelect({ value, onChange, className }: TeacherSelectProps
           <CommandInput placeholder="Search teacher..." />
           <CommandEmpty>No teacher found.</CommandEmpty>
           <CommandGroup>
-            {teachers.map((teacher) => (
+            {Array.isArray(teachers) && teachers.map((teacher) => (
               <CommandItem
                 key={teacher._id}
                 value={teacher._id}
