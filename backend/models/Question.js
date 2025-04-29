@@ -1,49 +1,51 @@
 const mongoose = require('mongoose');
 
-const Question = mongoose.models.Question || mongoose.model('Question', new mongoose.Schema({
+const questionSchema = new mongoose.Schema({
   text: {
     type: String,
-    required: true,
+    required: [true, 'Question text is required'],
     trim: true
   },
   type: {
     type: String,
-    enum: ['multiple-choice', 'true-false', 'short-answer', 'essay'],
-    required: true
-  },
-  options: [{
-    type: String,
-    trim: true
-  }],
-  correctAnswer: {
-    type: mongoose.Schema.Types.Mixed, // Can be string or array depending on question type
-    required: true
-  },
-  points: {
-    type: Number,
-    required: true,
-    min: 1
-  },
-  difficulty: {
-    type: String,
-    enum: ['easy', 'medium', 'hard'],
-    default: 'medium'
-  },
-  time: {
-    type: Number,
-    default: 30 // Default time in seconds
+    enum: ['multiple-choice', 'short-answer', 'descriptive'],
+    required: [true, 'Question type is required']
   },
   subject: {
     type: String,
-    required: true
+    required: [true, 'Subject is required'],
+    trim: true
   },
-  class: {
+  className: {
     type: String,
-    required: true
+    required: [true, 'Class is required'],
+    trim: true
   },
   chapter: {
     type: String,
-    required: true
+    trim: true
+  },
+  difficulty: {
+    type: String,
+    enum: ['Easy', 'Medium', 'Hard'],
+    default: 'Medium'
+  },
+  options: [{
+    type: String
+  }],
+  correctAnswer: {
+    type: mongoose.Schema.Types.Mixed, // Can be string or array for multiple choice
+    required: [true, 'Correct answer is required']
+  },
+  points: {
+    type: Number,
+    required: [true, 'Points are required'],
+    min: [1, 'Points must be at least 1']
+  },
+  time: {
+    type: Number,
+    required: [true, 'Time limit is required'],
+    min: [5, 'Time must be at least 5 seconds']
   },
   tags: [{
     type: String,
@@ -57,15 +59,25 @@ const Question = mongoose.models.Question || mongoose.model('Question', new mong
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
+  },
+  status: {
+    type: String,
+    enum: ['Active', 'Inactive'],
+    default: 'Active'
   }
 }, {
   timestamps: true
-}));
+});
 
-// Index for efficient querying
-Question.schema.index({ examIds: 1 });
-Question.schema.index({ createdBy: 1 });
-Question.schema.index({ subject: 1 });
-Question.schema.index({ class: 1 });
+// Create indexes for faster queries
+questionSchema.index({ text: 'text' });
+questionSchema.index({ subject: 1 });
+questionSchema.index({ className: 1 });
+questionSchema.index({ type: 1 });
+questionSchema.index({ difficulty: 1 });
+questionSchema.index({ createdBy: 1 });
+questionSchema.index({ status: 1 });
+
+const Question = mongoose.model('Question', questionSchema);
 
 module.exports = Question; 

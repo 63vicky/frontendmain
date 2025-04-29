@@ -7,9 +7,10 @@ exports.getAllSubjects = async (req, res) => {
     const subjects = await Subject.find()
       .populate('teacher', 'name email')
       .sort({ createdAt: -1 });
-    res.json({data: subjects});
+      
+      res.json({ success: true, data: subjects });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -19,11 +20,11 @@ exports.getSubjectById = async (req, res) => {
     const subject = await Subject.findById(req.params.id)
       .populate('teacher', 'name email');
     if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
+      return res.status(404).json({ success: false, message: 'Subject not found' });
     }
-    res.json(subject);
+    res.json({ success: true, data: subject });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -39,6 +40,7 @@ exports.createSubject = async (req, res) => {
 
     if (existingSubject) {
       return res.status(400).json({
+        success: false,
         message: 'Subject with this name or code already exists'
       });
     }
@@ -47,7 +49,7 @@ exports.createSubject = async (req, res) => {
     if (teacher) {
       const teacherUser = await User.findOne({ _id: teacher, role: 'teacher' });
       if (!teacherUser) {
-        return res.status(400).json({ message: 'Invalid teacher ID' });
+        return res.status(400).json({ success: false, message: 'Invalid teacher ID' });
       }
     }
 
@@ -60,9 +62,12 @@ exports.createSubject = async (req, res) => {
     });
 
     const savedSubject = await subject.save();
-    res.status(201).json(savedSubject);
+    const populatedSubject = await Subject.findById(savedSubject._id)
+      .populate('teacher', 'name email');
+
+    res.status(201).json({ success: true, data: populatedSubject });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -74,7 +79,7 @@ exports.updateSubject = async (req, res) => {
     // Check if subject exists
     const subject = await Subject.findById(req.params.id);
     if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
+      return res.status(404).json({ success: false, message: 'Subject not found' });
     }
 
     // Check for duplicate name/code if they're being changed
@@ -86,6 +91,7 @@ exports.updateSubject = async (req, res) => {
 
       if (existingSubject) {
         return res.status(400).json({
+          success: false,
           message: 'Subject with this name or code already exists'
         });
       }
@@ -95,7 +101,7 @@ exports.updateSubject = async (req, res) => {
     if (teacher) {
       const teacherUser = await User.findOne({ _id: teacher, role: 'teacher' });
       if (!teacherUser) {
-        return res.status(400).json({ message: 'Invalid teacher ID' });
+        return res.status(400).json({ success: false, message: 'Invalid teacher ID' });
       }
     }
 
@@ -112,9 +118,9 @@ exports.updateSubject = async (req, res) => {
       { new: true }
     ).populate('teacher', 'name email');
 
-    res.json(updatedSubject);
+    res.json({ success: true, data: updatedSubject });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -123,12 +129,12 @@ exports.deleteSubject = async (req, res) => {
   try {
     const subject = await Subject.findById(req.params.id);
     if (!subject) {
-      return res.status(404).json({ message: 'Subject not found' });
+      return res.status(404).json({ success: false, message: 'Subject not found' });
     }
 
     await Subject.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Subject deleted successfully' });
+    res.json({ success: true, message: 'Subject deleted successfully' });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    res.status(500).json({ success: false, message: error.message });
   }
 }; 

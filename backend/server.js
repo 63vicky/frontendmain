@@ -21,6 +21,7 @@ const classRoutes = require('./routes/classRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const examAnalyticsRoutes = require('./routes/examAnalyticsRoutes');
 const questionRoutes = require('./routes/questionRoutes');
+const materialRoutes = require('./routes/materialRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -61,6 +62,9 @@ app.use('/api/exams/create', examCreationLimiter);
 app.use(express.json());
 app.use(cookieParser());
 
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // MongoDB Connection with retry logic
 const connectWithRetry = async () => {
   try {
@@ -88,6 +92,7 @@ app.use('/api/classes', classRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/exam-analytics', examAnalyticsRoutes);
 app.use('/api/questions', questionRoutes);
+app.use('/api/materials', materialRoutes);
 
 // Apply caching to specific routes
 app.get('/api/exams', cache(CACHE_DURATION.SHORT), examRoutes);
@@ -96,6 +101,7 @@ app.get('/api/dashboard', cache(CACHE_DURATION.SHORT), dashboardRoutes);
 app.get('/api/classes', cache(CACHE_DURATION.MEDIUM), classRoutes);
 app.get('/api/subjects', cache(CACHE_DURATION.MEDIUM), subjectRoutes);
 app.get('/api/questions', cache(CACHE_DURATION.SHORT), questionRoutes);
+app.get('/api/materials', cache(CACHE_DURATION.SHORT), materialRoutes);
 
 // Error handling middleware
 app.use(handleSpecificErrors);

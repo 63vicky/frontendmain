@@ -162,3 +162,32 @@ export interface Result {
   createdAt: string
   updatedAt: string
 }
+
+export interface Class {
+  _id: string
+  name: string
+  subject: string
+  students: number
+  schedule: string
+  room: string
+  teacher: {
+    _id: string
+    name: string
+    email: string
+  }
+}
+
+export interface Student {
+  _id: string
+  name: string
+  rollNo: string
+  attendance: string
+  performance: string
+}
+
+export interface ClassFormData {
+  name: string
+  subject: string
+  schedule: string
+  room: string
+}

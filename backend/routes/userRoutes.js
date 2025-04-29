@@ -24,12 +24,12 @@ router.get('/students', authenticate, getStudents);
 router.get('/:id', authenticate, getUserById);
 
 // Create new user (admin only)
-router.post('/', authenticate, authorize('principal'), createUser);
+router.post('/', authenticate, authorize('principal', 'teacher'), createUser);
 
 // Update user
 router.put('/:id', authenticate, updateUser);
 
 // Delete user (admin only)
-router.delete('/:id', authenticate, authorize('principal'), deleteUser);
+router.delete('/:id', authenticate, authorize('principal', 'teacher'), deleteUser);
 
 module.exports = router; 

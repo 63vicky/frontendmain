@@ -82,8 +82,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
   const loadClasses = async () => {
     try {
       setLoadingClasses(true)
-      const data = await classApi.getAllClasses()
-      setClasses(data)
+      const response = await classApi.getAllClasses()
+      setClasses(response.data)
     } catch (error) {
       toast({
         title: "Error",

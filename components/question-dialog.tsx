@@ -50,7 +50,6 @@ export function QuestionDialog({
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
   const [subjects, setSubjects] = useState<string[]>([])
   const [classes, setClasses] = useState<string[]>([])
-  const [chapters, setChapters] = useState<string[]>([])
   const [selectedSubject, setSelectedSubject] = useState<string>('')
 
   // Memoize fetch options to prevent unnecessary re-renders
@@ -132,27 +131,27 @@ export function QuestionDialog({
     const fetchDynamicData = async () => {
       try {
         // Fetch subjects
-        const subjectsResponse = await fetch(`${API_URL}/questions/subjects`, {
+        const subjectsResponse = await fetch(`${API_URL}/subjects`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
-        console.log(subjectsResponse);
+        console.log("subjectsResponse", subjectsResponse);
         if (subjectsResponse.ok) {
           const data = await subjectsResponse.json();
-          setSubjects(data.data);
+          setSubjects(data.data.map((subject: any) => subject.name));
         }
 
         // Fetch classes
-        const classesResponse = await fetch(`${API_URL}/questions/classes`, {
+        const classesResponse = await fetch(`${API_URL}/classes`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
         if (classesResponse.ok) {
           const data = await classesResponse.json();
-          setClasses(data.data);
+          setClasses(data.data.map((cls: any) => cls.name));
         }
       } catch (error) {
         console.error('Error fetching dynamic data:', error);
@@ -163,29 +162,6 @@ export function QuestionDialog({
       fetchDynamicData();
     }
   }, [open, API_URL]);
-
-  // Fetch chapters when subject changes
-  useEffect(() => {
-    const fetchChapters = async () => {
-      if (!selectedSubject) return;
-
-      try {
-        const response = await fetch(`${API_URL}/questions/chapters/${selectedSubject}`, {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setChapters(data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching chapters:', error);
-      }
-    };
-
-    fetchChapters();
-  }, [selectedSubject, API_URL]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -223,7 +199,8 @@ export function QuestionDialog({
         }
       }
 
-      const response = await fetch(`${API_URL}/questions/exam/${exam._id}`, {
+      // First create the question
+      const questionResponse = await fetch(`${API_URL}/questions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -240,15 +217,34 @@ export function QuestionDialog({
           difficulty: formData.get('difficulty'),
           time: parseInt(formData.get('time') as string),
           subject: formData.get('subject'),
-          class: formData.get('class'),
+          className: formData.get('class'),
           chapter: formData.get('chapter'),
           tags: formData.get('tags')?.toString().split(',').map(tag => tag.trim()) || []
         })
-      })
+      });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to add question');
+      if (!questionResponse.ok) {
+        const error = await questionResponse.json();
+        throw new Error(error.message || 'Failed to create question');
+      }
+
+      const questionData = await questionResponse.json();
+
+      // Then add the question to the exam
+      const addToExamResponse = await fetch(`${API_URL}/questions/${questionData.data._id}/add-to-exam`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify({
+          examId: exam._id
+        })
+      });
+
+      if (!addToExamResponse.ok) {
+        const error = await addToExamResponse.json();
+        throw new Error(error.message || 'Failed to add question to exam');
       }
 
       toast({
@@ -290,7 +286,7 @@ export function QuestionDialog({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.error || 'Failed to add question');
+        throw new Error(error.message || 'Failed to add question');
       }
 
       toast({
@@ -393,18 +389,12 @@ export function QuestionDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="chapter">Chapter/Topic</Label>
-                  <Select name="chapter" defaultValue={exam?.chapter}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select chapter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {chapters.map((chapter) => (
-                        <SelectItem key={chapter} value={chapter}>
-                          {chapter}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Input 
+                    id="chapter"
+                    name="chapter"
+                    placeholder="Enter chapter or topic"
+                    defaultValue={exam?.chapter}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="difficulty">Difficulty Level</Label>
@@ -413,9 +403,9 @@ export function QuestionDialog({
                       <SelectValue placeholder="Select difficulty" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="easy">Easy</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="hard">Hard</SelectItem>
+                      <SelectItem value="Easy">Easy</SelectItem>
+                      <SelectItem value="Medium">Medium</SelectItem>
+                      <SelectItem value="Hard">Hard</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -541,7 +531,9 @@ export function QuestionDialog({
                 </div>
               ) : filteredQuestions.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  No questions found
+                  <Search className="h-8 w-8 text-muted-foreground opacity-20 mb-2 mx-auto" />
+                  <p>No questions found</p>
+                  <p className="text-sm">Try adjusting your search criteria</p>
                 </div>
               ) : (
                 <div className="space-y-4 max-h-[500px] overflow-y-auto">

@@ -5,7 +5,7 @@ const classSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Class name is required'],
     trim: true,
-    unique: true
+    
   },
   section: {
     type: String,
@@ -16,9 +16,14 @@ const classSchema = new mongoose.Schema({
     type: Number,
     default: 0
   },
-  teacher: {
+  subject: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Subject',
+    required: [true, 'Subject is required']
+  },
+  schedule: {
     type: String,
-    required: [true, 'Class teacher is required'],
+    required: [true, 'Schedule is required'],
     trim: true
   },
   status: {
@@ -42,6 +47,7 @@ const classSchema = new mongoose.Schema({
 classSchema.index({ name: 1 });
 classSchema.index({ section: 1 });
 classSchema.index({ status: 1 });
+classSchema.index({ subject: 1 });
 
 const Class = mongoose.model('Class', classSchema);
 

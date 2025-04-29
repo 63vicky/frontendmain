@@ -182,10 +182,10 @@ function TeacherDashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
-                    {recentExams.length === 0 ? (
+                    {recentExams && recentExams.length === 0 ? (
                       <div className="text-center py-4 text-muted-foreground">No recent exams found</div>
                     ) : (
-                      recentExams.map((exam) => (
+                      recentExams && recentExams.map((exam) => (
                         <div key={exam.id} className="flex items-center justify-between border-b pb-2">
                           <div>
                             <p className="font-medium">{exam.name}</p>

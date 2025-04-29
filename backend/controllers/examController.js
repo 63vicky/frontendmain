@@ -27,6 +27,31 @@ let exams = [
   }
 ];
 
+// Function to update exam status based on dates
+const updateExamStatus = async (exam) => {
+  const now = new Date();
+  let newStatus = exam.status;
+
+  if (exam.status === 'draft') {
+    if (now >= exam.startDate) {
+      newStatus = 'active';
+    } else if (now < exam.startDate) {
+      newStatus = 'scheduled';
+    }
+  } else if (exam.status === 'scheduled' && now >= exam.startDate) {
+    newStatus = 'active';
+  } else if (exam.status === 'active' && now > exam.endDate) {
+    newStatus = 'completed';
+  }
+
+  if (newStatus !== exam.status) {
+    exam.status = newStatus;
+    await exam.save();
+  }
+
+  return exam;
+};
+
 const getExams = async (req, res) => {
   try {
     res.json(exams);
@@ -97,9 +122,14 @@ const getTeacherExams = async (req, res) => {
     const exams = await Exam.find({ createdBy: req.user._id })
       .sort({ createdAt: -1 });
 
+    // Update status for each exam
+    const updatedExams = await Promise.all(
+      exams.map(exam => updateExamStatus(exam))
+    );
+
     res.status(200).json({
       success: true,
-      data: exams
+      data: updatedExams
     });
   } catch (error) {
     console.error('Error fetching exams:', error);
@@ -206,7 +236,7 @@ const deleteExam = async (req, res) => {
       });
     }
 
-    await exam.remove();
+    await exam.deleteOne();
 
     res.status(200).json({
       success: true,

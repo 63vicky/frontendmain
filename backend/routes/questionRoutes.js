@@ -1,39 +1,53 @@
 const express = require('express');
 const router = express.Router();
+const questionController = require('../controllers/questionController');
 const { authenticate, authorize } = require('../middleware/auth');
-const {
-  createQuestion,
-  getExamQuestions,
-  updateQuestion,
-  deleteQuestion,
-  getAllQuestions,
-  addQuestionToExam,
-  getSubjects,
-  getClasses,
-  getChapters
-} = require('../controllers/questionController');
 
-// Protect all routes
-router.use(authenticate);
+// Get all questions with filters
+router.get('/', authenticate, questionController.getAllQuestions);
 
-// Get dynamic data for dropdowns
-router.get('/subjects', authorize('teacher'), getSubjects);
-router.get('/classes', authorize('teacher'), getClasses);
-router.get('/chapters/:subject', authorize('teacher'), getChapters);
+// Get unique subjects
+router.get('/subjects', authenticate, questionController.getSubjects);
 
-// Get all questions (for teachers)
-router.get('/', authorize('teacher'), getAllQuestions);
+// Get unique classes
+router.get('/classes', authenticate, questionController.getClasses);
+
+// Get unique chapters for a subject
+router.get('/chapters/:subject', authenticate, questionController.getChapters);
+
+// Create new question
+router.post('/', 
+  authenticate, 
+  authorize('teacher', 'principal'), 
+  questionController.createQuestion
+);
+
+// Update question
+router.put('/:id', 
+  authenticate, 
+  authorize('teacher', 'principal'), 
+  questionController.updateQuestion
+);
+
+// Delete question
+router.delete('/:id', 
+  authenticate, 
+  authorize('teacher', 'principal'), 
+  questionController.deleteQuestion
+);
 
 // Add question to exam
-router.post('/:questionId/add-to-exam', authorize('teacher'), addQuestionToExam);
+router.post('/:id/add-to-exam', 
+  authenticate, 
+  authorize('teacher', 'principal'), 
+  questionController.addToExam
+);
 
-// Teacher routes
-router.route('/exam/:examId')
-  .get(authorize('teacher'), getExamQuestions)
-  .post(authorize('teacher'), createQuestion);
-
-router.route('/:id')
-  .put(authorize('teacher'), updateQuestion)
-  .delete(authorize('teacher'), deleteQuestion);
+// Remove question from exam
+router.post('/:id/remove-from-exam', 
+  authenticate, 
+  authorize('teacher', 'principal'), 
+  questionController.removeFromExam
+);
 
 module.exports = router; 

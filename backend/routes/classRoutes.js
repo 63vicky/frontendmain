@@ -6,7 +6,9 @@ const {
   getClassById,
   createClass,
   updateClass,
-  deleteClass
+  deleteClass,
+  getClassStudents,
+  addStudentsToClass
 } = require('../controllers/classController');
 
 // Get all classes
@@ -15,13 +17,19 @@ router.get('/', authenticate, getAllClasses);
 // Get class by ID
 router.get('/:id', authenticate, getClassById);
 
+// Get students in a class
+router.get('/:id/students', authenticate, getClassStudents);
+
+// Add students to class
+router.post('/:id/students', authenticate, authorize('principal', 'teacher'), addStudentsToClass);
+
 // Create new class (admin only)
-router.post('/', authenticate, authorize('principal'), createClass);
+router.post('/', authenticate, authorize('principal', 'teacher'), createClass);
 
 // Update class (admin only)
-router.put('/:id', authenticate, authorize('principal'), updateClass);
+router.put('/:id', authenticate, authorize('principal', 'teacher'), updateClass);
 
 // Delete class (admin only)
-router.delete('/:id', authenticate, authorize('principal'), deleteClass);
+router.delete('/:id', authenticate, authorize('principal', 'teacher'), deleteClass);
 
 module.exports = router; 

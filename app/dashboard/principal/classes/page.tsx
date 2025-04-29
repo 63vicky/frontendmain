@@ -16,18 +16,28 @@ import {
 import { Badge } from "@/components/ui/badge"
 import DashboardLayout from "@/components/dashboard-layout"
 import { PlusCircle, Search, Edit, Trash2, Users, Loader2 } from "lucide-react"
-import { classApi } from "@/lib/api"
+import { classApi, subjectApi } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
-import { TeacherSelect } from "@/components/TeacherSelect"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Class {
   _id: string;
   name: string;
   section: string;
   students: number;
-  teacher: string;
-  teacherName: string;
+  subject: {
+    _id: string;
+    name: string;
+    code: string;
+  };
+  schedule: string;
   status: 'Active' | 'Inactive';
+}
+
+interface Subject {
+  _id: string;
+  name: string;
+  code: string;
 }
 
 export default function ClassManagement() {
@@ -36,25 +46,29 @@ export default function ClassManagement() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
   const [classes, setClasses] = useState<Class[]>([])
+  const [subjects, setSubjects] = useState<Subject[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingSubjects, setLoadingSubjects] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     section: '',
-    teacher: '',
+    subject: '',
+    schedule: '',
     status: 'Active' as 'Active' | 'Inactive'
   })
   const { toast } = useToast()
 
   useEffect(() => {
     loadClasses()
+    loadSubjects()
   }, [])
 
   const loadClasses = async () => {
     try {
       setLoading(true)
       const data = await classApi.getAllClasses()
-      setClasses(data)
+      setClasses(data.data)
     } catch (error) {
       toast({
         title: "Error",
@@ -63,6 +77,22 @@ export default function ClassManagement() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadSubjects = async () => {
+    try {
+      setLoadingSubjects(true)
+      const data = await subjectApi.getAllSubjects()
+      setSubjects(data.data)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load subjects",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingSubjects(false)
     }
   }
 
@@ -90,7 +120,8 @@ export default function ClassManagement() {
       setFormData({
         name: '',
         section: '',
-        teacher: '',
+        subject: '',
+        schedule: '',
         status: 'Active'
       })
       loadClasses()
@@ -110,7 +141,8 @@ export default function ClassManagement() {
     setFormData({
       name: cls.name,
       section: cls.section,
-      teacher: cls.teacher,
+      subject: cls.subject._id,
+      schedule: cls.schedule,
       status: cls.status
     })
     setShowAddDialog(true)
@@ -163,7 +195,7 @@ export default function ClassManagement() {
   const filteredClasses = classes.filter(
     (cls) =>
       cls.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      cls.teacherName.toLowerCase().includes(searchQuery.toLowerCase())
+      cls.section.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
   if (loading) {
@@ -191,7 +223,8 @@ export default function ClassManagement() {
               setFormData({
                 name: '',
                 section: '',
-                teacher: '',
+                subject: '',
+                schedule: '',
                 status: 'Active'
               })
               setShowAddDialog(true)
@@ -226,7 +259,8 @@ export default function ClassManagement() {
                   <TableHead>Class Name</TableHead>
                   <TableHead>Section</TableHead>
                   <TableHead>Students</TableHead>
-                  <TableHead>Class Teacher</TableHead>
+                  <TableHead>Subject</TableHead>
+                  <TableHead>Schedule</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -234,7 +268,7 @@ export default function ClassManagement() {
               <TableBody>
                 {filteredClasses.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No classes found
                     </TableCell>
                   </TableRow>
@@ -249,7 +283,8 @@ export default function ClassManagement() {
                           {cls.students}
                         </div>
                       </TableCell>
-                      <TableCell>{cls.teacherName}</TableCell>
+                      <TableCell>{cls.subject.name}</TableCell>
+                      <TableCell>{cls.schedule}</TableCell>
                       <TableCell>
                         <Badge onClick={() => handleStatusToggle(cls)}
                           variant={cls.status === "Active" ? "default" : "secondary"}
@@ -321,15 +356,43 @@ export default function ClassManagement() {
                 />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
-                <label htmlFor="teacher" className="text-right font-medium">
-                  Class Teacher
+                <label htmlFor="subject" className="text-right font-medium">
+                  Subject
                 </label>
                 <div className="col-span-3">
-                  <TeacherSelect
-                    value={formData.teacher}
-                    onChange={(value) => setFormData({ ...formData, teacher: value })}
-                  />
+                  {loadingSubjects ? (
+                    <div className="h-10 w-full rounded-md border border-input bg-muted animate-pulse" />
+                  ) : (
+                    <Select
+                      value={formData.subject}
+                      onValueChange={(value) => setFormData({ ...formData, subject: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subjects.map((subject) => (
+                          <SelectItem key={subject._id} value={subject._id}>
+                            {subject.name} ({subject.code})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                 </div>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <label htmlFor="schedule" className="text-right font-medium">
+                  Schedule
+                </label>
+                <Input
+                  id="schedule"
+                  value={formData.schedule}
+                  onChange={(e) => setFormData({ ...formData, schedule: e.target.value })}
+                  className="col-span-3"
+                  placeholder="e.g., Mon, Wed, Fri 9:00 AM - 10:30 AM"
+                  required
+                />
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <label htmlFor="status" className="text-right font-medium">
@@ -347,28 +410,15 @@ export default function ClassManagement() {
                 </select>
               </div>
             </div>
-
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setShowAddDialog(false)}
-                disabled={isSubmitting}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
-                disabled={isSubmitting}
-              >
+              <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {selectedClass ? "Saving..." : "Creating..."}
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {selectedClass ? "Updating..." : "Creating..."}
                   </>
                 ) : (
-                  selectedClass ? "Save Changes" : "Add Class"
+                  selectedClass ? "Update Class" : "Create Class"
                 )}
               </Button>
             </DialogFooter>
@@ -382,30 +432,21 @@ export default function ClassManagement() {
           <DialogHeader>
             <DialogTitle>Delete Class</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete {selectedClass?.name}? This action cannot be undone.
+              Are you sure you want to delete this class? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
-
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-              disabled={isSubmitting}
-            >
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDelete}
-              disabled={isSubmitting}
-            >
+            <Button variant="destructive" onClick={handleDelete} disabled={isSubmitting}>
               {isSubmitting ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   Deleting...
                 </>
               ) : (
-                'Delete'
+                "Delete"
               )}
             </Button>
           </DialogFooter>

@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getToken } from './utils';
-import { User, Exam, Result, DashboardStats, RecentExam, ClassPerformance } from './types';
+import { User, Exam, Result, DashboardStats, RecentExam, ClassPerformance, Class, Student, ClassFormData } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -221,6 +221,164 @@ export const api = {
     getRecentExams: () => fetchWithAuth<RecentExam[]>('/dashboard/recent-exams'),
     getClassPerformance: () => fetchWithAuth<ClassPerformance[]>('/dashboard/class-performance'),
   },
+
+  // Question Management APIs
+  questions: {
+    getAll: async (filters?: {
+      subject?: string;
+      className?: string;
+      type?: string;
+      difficulty?: string;
+      search?: string;
+    }) => {
+      const queryParams = new URLSearchParams();
+      if (filters) {
+        Object.entries(filters).forEach(([key, value]) => {
+          if (value) queryParams.append(key, value);
+        });
+      }
+      const response = await fetch(`${API_URL}/questions?${queryParams}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch questions');
+      return response.json();
+    },
+
+    getById: async (id: string) => {
+      const response = await fetch(`${API_URL}/questions/${id}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch question');
+      return response.json();
+    },
+
+    create: async (questionData: {
+      text: string;
+      type: 'multiple-choice' | 'short-answer' | 'descriptive';
+      subject: string;
+      className: string;
+      chapter?: string;
+      difficulty: 'Easy' | 'Medium' | 'Hard';
+      options?: string[];
+      correctAnswer: string | string[];
+      points: number;
+      time: number;
+      tags?: string[];
+    }) => {
+      const response = await fetch(`${API_URL}/questions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(questionData)
+      });
+      if (!response.ok) throw new Error('Failed to create question');
+      return response.json();
+    },
+
+    update: async (id: string, questionData: {
+      text?: string;
+      type?: 'multiple-choice' | 'short-answer' | 'descriptive';
+      subject?: string;
+      className?: string;
+      chapter?: string;
+      difficulty?: 'Easy' | 'Medium' | 'Hard';
+      options?: string[];
+      correctAnswer?: string | string[];
+      points?: number;
+      time?: number;
+      tags?: string[];
+      status?: 'Active' | 'Inactive';
+    }) => {
+      const response = await fetch(`${API_URL}/questions/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(questionData)
+      });
+      if (!response.ok) throw new Error('Failed to update question');
+      return response.json();
+    },
+
+    delete: async (id: string) => {
+      const response = await fetch(`${API_URL}/questions/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Failed to delete question');
+      }
+      return data;
+    },
+
+    addToExam: async (id: string, examId: string) => {
+      const response = await fetch(`${API_URL}/questions/${id}/add-to-exam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ examId })
+      });
+      if (!response.ok) throw new Error('Failed to add question to exam');
+      return response.json();
+    },
+
+    removeFromExam: async (id: string, examId: string) => {
+      const response = await fetch(`${API_URL}/questions/${id}/remove-from-exam`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ examId })
+      });
+      if (!response.ok) throw new Error('Failed to remove question from exam');
+      return response.json();
+    },
+
+    getSubjects: async () => {
+      const response = await fetch(`${API_URL}/questions/subjects`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch subjects');
+      return response.json();
+    },
+
+    getClasses: async () => {
+      const response = await fetch(`${API_URL}/questions/classes`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch classes');
+      return response.json();
+    },
+
+    getChapters: async (subject: string) => {
+      const response = await fetch(`${API_URL}/questions/chapters/${subject}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch chapters');
+      return response.json();
+    }
+  },
+
+  // Class endpoints
+  classes: {
+    getAll: () => fetchWithAuth<Class[]>('/classes'),
+    getById: (id: string) => fetchWithAuth<Class>(`/classes/${id}`),
+    create: (classData: any) =>
+      fetchWithAuth<Class>('/classes', {
+        method: 'POST',
+        body: classData,
+      }),
+    update: (id: string, classData: any) =>
+      fetchWithAuth<Class>(`/classes/${id}`, {
+        method: 'PUT',
+        body: classData,
+      }),
+    delete: (id: string) =>
+      fetchWithAuth(`/classes/${id}`, {
+        method: 'DELETE',
+      }),
+    getStudents: (id: string) =>
+      fetchWithAuth<Student[]>(`/classes/${id}/students`),
+  },
 };
 
 // Teacher Management APIs
@@ -347,7 +505,8 @@ export const classApi = {
   createClass: async (classData: {
     name: string;
     section: string;
-    teacher: string;
+    subject: string;
+    schedule: string;
     status: 'Active' | 'Inactive';
   }) => {
     const response = await fetch(`${API_URL}/classes`, {
@@ -363,7 +522,8 @@ export const classApi = {
   updateClass: async (id: string, classData: {
     name?: string;
     section?: string;
-    teacher?: string;
+    subject?: string;
+    schedule?: string;
     status?: 'Active' | 'Inactive';
   }) => {
     const response = await fetch(`${API_URL}/classes/${id}`, {
