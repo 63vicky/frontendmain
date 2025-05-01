@@ -251,7 +251,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
               });
 
               // Then, update the previous class's student count
-              const removeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${previousClassId}/remove-students`, {
+              const removeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/classes/${previousClassId}/remove-students`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
