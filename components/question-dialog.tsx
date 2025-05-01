@@ -96,7 +96,7 @@ export function QuestionDialog({
   // Filter questions based on search query
   const filteredQuestions = useMemo(() => {
     if (!questionsData?.data) return []
-    return questionsData.data.filter(q => 
+    return questionsData.data.filter(q =>
       q.text.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.chapter?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -106,13 +106,13 @@ export function QuestionDialog({
   // Check if a question is already added to the exam
   const isQuestionAdded = (question: Question) => {
     if (!exam || !question.examIds) return false;
-    
+
     console.log('Checking if question is added:', {
       questionText: question.text,
       questionExamIds: question.examIds,
       currentExamId: exam._id
     });
-    
+
     return question.examIds.includes(exam._id);
   }
 
@@ -169,25 +169,25 @@ export function QuestionDialog({
 
     setLoading(true)
     const formData = new FormData(e.currentTarget)
-    
+
     try {
       // Handle correct answer based on question type
       let correctAnswer;
       const questionType = formData.get('question-type') as string;
-      
+
       if (questionType === 'multiple-choice') {
         // For multiple choice, collect all checked options
         const options = ["A", "B", "C", "D"].map(option => ({
           option: formData.get(`option-${option}`) as string,
           isCorrect: formData.get(`correct-${option}`) === 'on'
         }));
-        
+
         // Filter out empty options and get correct answers
         const validOptions = options.filter(opt => opt.option);
         correctAnswer = validOptions
           .filter(opt => opt.isCorrect)
           .map(opt => opt.option);
-          
+
         if (correctAnswer.length === 0) {
           throw new Error('Please select at least one correct answer');
         }
@@ -209,7 +209,7 @@ export function QuestionDialog({
         body: JSON.stringify({
           text: formData.get('question'),
           type: questionType,
-          options: questionType === 'multiple-choice' 
+          options: questionType === 'multiple-choice'
             ? ["A", "B", "C", "D"].map(option => formData.get(`option-${option}`)).filter(Boolean)
             : [],
           correctAnswer,
@@ -272,7 +272,7 @@ export function QuestionDialog({
     setLoading(true)
     try {
       console.log('Adding question to exam:', { question, examId: exam._id });
-      
+
       const response = await fetch(`${API_URL}/questions/${question._id}/add-to-exam`, {
         method: 'POST',
         headers: {
@@ -353,8 +353,8 @@ export function QuestionDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="subject">Subject</Label>
-                  <Select 
-                    name="subject" 
+                  <Select
+                    name="subject"
                     defaultValue={exam?.subject}
                     onValueChange={(value) => setSelectedSubject(value)}
                   >
@@ -389,7 +389,7 @@ export function QuestionDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="chapter">Chapter/Topic</Label>
-                  <Input 
+                  <Input
                     id="chapter"
                     name="chapter"
                     placeholder="Enter chapter or topic"
@@ -412,8 +412,8 @@ export function QuestionDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="question-type">Question Type</Label>
-                <Select 
-                  name="question-type" 
+                <Select
+                  name="question-type"
                   defaultValue="multiple-choice"
                   onValueChange={(value) => setQuestionType(value as 'multiple-choice' | 'short-answer' | 'descriptive')}
                 >
@@ -429,11 +429,11 @@ export function QuestionDialog({
               </div>
               <div className="space-y-2">
                 <Label htmlFor="question">Question</Label>
-                <Textarea 
-                  id="question" 
-                  name="question" 
-                  placeholder="Enter your question here" 
-                  rows={3} 
+                <Textarea
+                  id="question"
+                  name="question"
+                  placeholder="Enter your question here"
+                  rows={3}
                   required
                 />
               </div>
@@ -445,9 +445,9 @@ export function QuestionDialog({
                       <div key={option} className="flex items-center gap-2">
                         <Checkbox id={`option-${option}`} name={`correct-${option}`} />
                         <Label htmlFor={`option-${option}`} className="flex-1">
-                          <Input 
-                            name={`option-${option}`} 
-                            placeholder={`Option ${option}`} 
+                          <Input
+                            name={`option-${option}`}
+                            placeholder={`Option ${option}`}
                             required
                           />
                         </Label>
@@ -460,10 +460,22 @@ export function QuestionDialog({
               {questionType === 'short-answer' && (
                 <div className="space-y-2">
                   <Label htmlFor="answer">Correct Answer</Label>
-                  <Input 
-                    id="answer" 
-                    name="answer" 
-                    placeholder="Enter the correct answer" 
+                  <Input
+                    id="answer"
+                    name="answer"
+                    placeholder="Enter the correct answer"
+                    required
+                  />
+                </div>
+              )}
+              {questionType === 'descriptive' && (
+                <div className="space-y-2">
+                  <Label htmlFor="answer">Correct Answer</Label>
+                  <Textarea
+                    id="answer"
+                    name="answer"
+                    placeholder="Enter the model answer for this descriptive question"
+                    rows={3}
                     required
                   />
                 </div>
@@ -471,13 +483,13 @@ export function QuestionDialog({
               <div className="space-y-2">
                 <Label htmlFor="time">Time Limit</Label>
                 <div className="flex items-center gap-2">
-                  <Input 
-                    id="time" 
-                    name="time" 
-                    type="number" 
-                    min="5" 
-                    placeholder="30" 
-                    className="w-20" 
+                  <Input
+                    id="time"
+                    name="time"
+                    type="number"
+                    min="5"
+                    placeholder="30"
+                    className="w-20"
                     required
                   />
                   <span>seconds</span>
@@ -487,21 +499,21 @@ export function QuestionDialog({
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="marks">Marks</Label>
-                  <Input 
-                    id="marks" 
-                    name="marks" 
-                    type="number" 
-                    min="1" 
-                    defaultValue="1" 
+                  <Input
+                    id="marks"
+                    name="marks"
+                    type="number"
+                    min="1"
+                    defaultValue="1"
                     required
                   />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="tags">Tags (Optional)</Label>
-                  <Input 
-                    id="tags" 
-                    name="tags" 
-                    placeholder="e.g., important, exam" 
+                  <Input
+                    id="tags"
+                    name="tags"
+                    placeholder="e.g., important, exam"
                   />
                 </div>
               </div>
@@ -584,7 +596,7 @@ export function QuestionDialog({
                             <p className="font-medium">Options:</p>
                             <ul className="list-disc list-inside">
                               {question.options.map((option, index) => (
-                                <li key={index}>{option}</li>
+                                <li key={index}>{typeof option === 'string' ? option : option.text}</li>
                               ))}
                             </ul>
                           </div>
@@ -600,4 +612,4 @@ export function QuestionDialog({
       </DialogContent>
     </Dialog>
   )
-} 
+}

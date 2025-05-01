@@ -90,7 +90,7 @@ export default function TeacherQuestionsPage() {
     const newOptions = [...formData.options];
     newOptions[index] = value;
     setFormData({ ...formData, options: newOptions });
-    
+
     // Update correctAnswer if this option was previously selected
     if (checkedOptions[index]) {
       const newCorrectAnswer = [...formData.correctAnswer];
@@ -114,11 +114,11 @@ export default function TeacherQuestionsPage() {
     const newCheckedOptions = [...checkedOptions];
     newCheckedOptions[index] = checked;
     setCheckedOptions(newCheckedOptions);
-    
+
     // Update the correctAnswer array
     const optionValue = formData.options[index];
     let newCorrectAnswer = [...formData.correctAnswer];
-    
+
     if (checked) {
       // Only add if not already included and not empty
       if (optionValue && !newCorrectAnswer.includes(optionValue)) {
@@ -131,7 +131,7 @@ export default function TeacherQuestionsPage() {
         newCorrectAnswer.splice(optionIndex, 1);
       }
     }
-    
+
     // Update state with the new array
     setFormData(prevData => ({
       ...prevData,
@@ -278,10 +278,10 @@ export default function TeacherQuestionsPage() {
 
   const handleEdit = (question: Question) => {
     setSelectedQuestion(question);
-    
+
     // Create a deep copy of the options array to avoid reference issues
     const optionsCopy = question.options ? [...question.options] : ["", "", "", ""];
-    
+
     // Ensure correctAnswer is always an array
     let correctAnswerCopy: string[] = [];
     if (Array.isArray(question.correctAnswer)) {
@@ -289,14 +289,14 @@ export default function TeacherQuestionsPage() {
     } else if (question.correctAnswer) {
       correctAnswerCopy = [question.correctAnswer];
     }
-    
+
     // Set the checked options based on the correctAnswer
-    const newCheckedOptions = optionsCopy.map((option, index) => 
+    const newCheckedOptions = optionsCopy.map((option, index) =>
       correctAnswerCopy.includes(option)
     );
-    
+
     setCheckedOptions(newCheckedOptions);
-    
+
     setFormData({
       text: question.text,
       type: question.type,
@@ -310,7 +310,7 @@ export default function TeacherQuestionsPage() {
       time: question.time,
       tags: question.tags ? [...question.tags] : [],
     });
-    
+
     setShowEditDialog(true);
   };
 
@@ -369,7 +369,7 @@ export default function TeacherQuestionsPage() {
       setShowAddDialog(false)
       setShowEditDialog(false)
       setSelectedQuestion(null)
-      
+
       // Reset form data to initial state
       setFormData({
         text: "",
@@ -384,7 +384,7 @@ export default function TeacherQuestionsPage() {
         time: 30,
         tags: [],
       })
-      
+
       fetchData()
     } catch (error) {
       toast({
@@ -620,8 +620,8 @@ export default function TeacherQuestionsPage() {
                       <div className="space-y-2">
                         {["A", "B", "C", "D"].map((option, index) => (
                           <div key={option} className="flex items-center gap-2">
-                            <Checkbox 
-                              id={`option-${option}`} 
+                            <Checkbox
+                              id={`option-${option}`}
                               name={`correct-${option}`}
                               checked={isOptionSelected(index)}
                               onCheckedChange={(checked) => {
@@ -649,6 +649,18 @@ export default function TeacherQuestionsPage() {
                         value={formData.correctAnswer[0] || ""}
                         onChange={(e) => setFormData({ ...formData, correctAnswer: [e.target.value] })}
                         placeholder="Enter the correct answer"
+                      />
+                    </div>
+                  )}
+                  {formData.type === "descriptive" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="descriptive-answer">Correct Answer</Label>
+                      <Textarea
+                        id="descriptive-answer"
+                        value={formData.correctAnswer[0] || ""}
+                        onChange={(e) => setFormData({ ...formData, correctAnswer: [e.target.value] })}
+                        placeholder="Enter the model answer for this descriptive question"
+                        rows={3}
                       />
                     </div>
                   )}
@@ -1001,8 +1013,8 @@ export default function TeacherQuestionsPage() {
                 <div className="space-y-2">
                   {["A", "B", "C", "D"].map((option, index) => (
                     <div key={option} className="flex items-center gap-2">
-                      <Checkbox 
-                        id={`edit-option-${option}`} 
+                      <Checkbox
+                        id={`edit-option-${option}`}
                         name={`edit-correct-${option}`}
                         checked={isOptionSelected(index)}
                         onCheckedChange={(checked) => {
@@ -1030,6 +1042,18 @@ export default function TeacherQuestionsPage() {
                   value={formData.correctAnswer[0] || ""}
                   onChange={(e) => setFormData({ ...formData, correctAnswer: [e.target.value] })}
                   placeholder="Enter the correct answer"
+                />
+              </div>
+            )}
+            {formData.type === "descriptive" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-descriptive-answer">Correct Answer</Label>
+                <Textarea
+                  id="edit-descriptive-answer"
+                  value={formData.correctAnswer[0] || ""}
+                  onChange={(e) => setFormData({ ...formData, correctAnswer: [e.target.value] })}
+                  placeholder="Enter the model answer for this descriptive question"
+                  rows={3}
                 />
               </div>
             )}
