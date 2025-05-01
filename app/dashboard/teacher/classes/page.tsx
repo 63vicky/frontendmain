@@ -394,7 +394,7 @@ export default function TeacherClassesPage() {
       // Add students if there are any to add
       if (studentsToAdd.length > 0) {
         // Use fetch directly to have more control over the request
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${selectedClass._id}/students`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/classes/${selectedClass._id}/students`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -413,7 +413,7 @@ export default function TeacherClassesPage() {
       // Remove students if there are any to remove
       if (studentsToRemove.length > 0) {
         // Use fetch directly to have more control over the request
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${selectedClass._id}/remove-students`, {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/classes/${selectedClass._id}/remove-students`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -285,7 +285,7 @@ const CreateExamForm: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const router = useRouter()
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
@@ -333,7 +333,7 @@ const CreateExamForm: React.FC = () => {
 
     try {
       setLoading(true)
-      const response = await fetch(`${API_URL}/api/exams`, {
+      const response = await fetch(`${API_URL}/exams`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
