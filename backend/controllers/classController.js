@@ -29,8 +29,8 @@ const getAllClasses = async (req, res) => {
 
     const total = await Class.countDocuments(query);
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       data: classes,
       pagination: {
         total,
@@ -53,7 +53,22 @@ const getClassById = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Class not found' });
     }
 
-    res.json({ success: true, data: classData });
+    // Find the teacher assigned to this class
+    const teacher = await User.findOne({
+      role: 'teacher',
+      classes: { $in: [req.params.id] }
+    }).select('_id name email');
+
+    // Add teacher to the response if found
+    const responseData = classData.toObject();
+    if (teacher) {
+      responseData.teacher = {
+        _id: teacher._id,
+        name: teacher.name
+      };
+    }
+
+    res.json({ success: true, data: responseData });
   } catch (error) {
     if (error.name === 'CastError') {
       return res.status(400).json({ success: false, message: 'Invalid class ID' });
@@ -102,9 +117,9 @@ const createClass = async (req, res) => {
     // Verify subject exists
     const subjectData = await Subject.findById(subject);
     if (!subjectData) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: 'Invalid subject ID' 
+        message: 'Invalid subject ID'
       });
     }
 
@@ -184,9 +199,9 @@ const updateClass = async (req, res) => {
     if (subject) {
       const subjectData = await Subject.findById(subject);
       if (!subjectData) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: 'Invalid subject ID' 
+          message: 'Invalid subject ID'
         });
       }
     }
@@ -223,13 +238,13 @@ const deleteClass = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Class not found' });
     }
 
-    // // Check if class has students
-    // if (classData.students > 0) {
-    //   return res.status(400).json({
-    //     success: false,
-    //     message: 'Cannot delete class with students'
-    //   });
-    // }
+    // Check if class has students
+    if (classData.students > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cannot delete class with students'
+      });
+    }
 
     await Class.findByIdAndDelete(classId);
     res.json({ success: true, message: 'Class deleted successfully' });
@@ -246,7 +261,7 @@ const getClassStudents = async (req, res) => {
   try {
     const classId = req.params.id;
     const classData = await Class.findById(classId);
-    
+
     if (!classData) {
       return res.status(404).json({ success: false, message: 'Class not found' });
     }
@@ -324,6 +339,66 @@ const addStudentsToClass = async (req, res) => {
   }
 };
 
+// Remove students from class
+const removeStudentsFromClass = async (req, res) => {
+  try {
+    const classId = req.params.id;
+    const { studentIds } = req.body;
+
+    if (!studentIds || !Array.isArray(studentIds) || studentIds.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Student IDs array is required'
+      });
+    }
+
+    // Check if class exists
+    const classData = await Class.findById(classId);
+    if (!classData) {
+      return res.status(404).json({
+        success: false,
+        message: 'Class not found'
+      });
+    }
+
+    // Update students' class to empty string (remove from class)
+    const updateResult = await User.updateMany(
+      { _id: { $in: studentIds }, role: 'student', class: classId },
+      { $set: { class: "" } }
+    );
+
+    if (updateResult.modifiedCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'No students were removed from class'
+      });
+    }
+
+    // Update class student count
+    await Class.findByIdAndUpdate(classId, {
+      $inc: { students: -updateResult.modifiedCount }
+    });
+
+    res.json({
+      success: true,
+      message: `Removed ${updateResult.modifiedCount} students from class`,
+      data: { modifiedCount: updateResult.modifiedCount }
+    });
+  } catch (error) {
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid class ID or student IDs'
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: 'Error removing students from class',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getAllClasses,
   getClassById,
@@ -331,5 +406,10 @@ module.exports = {
   updateClass,
   deleteClass,
   getClassStudents,
-  addStudentsToClass
-}; 
+  addStudentsToClass,
+  removeStudentsFromClass
+};
+
+
+
+

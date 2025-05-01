@@ -48,11 +48,14 @@ export interface Exam {
 export interface Question {
   _id: string
   text: string
-  type: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay'
-  options?: string[]
+  type: 'multiple-choice' | 'true-false' | 'short-answer' | 'essay' | 'fill-in-blank'
+  options?: Array<{
+    id: string
+    text: string
+  }>
   correctAnswer: string | string[]
   points: number
-  difficulty: 'easy' | 'medium' | 'hard'
+  difficulty: 'Easy' | 'Medium' | 'Hard'
   time: number
   subject: string
   class: string

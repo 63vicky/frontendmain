@@ -1,6 +1,6 @@
 import axios from 'axios';
 import { getToken } from './utils';
-import { User, Exam, Result, DashboardStats, RecentExam, ClassPerformance, Class, Student, ClassFormData } from './types';
+import { User, Exam, Result, DashboardStats, RecentExam, ClassPerformance, Class, Student, ClassFormData, Teacher } from './types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
@@ -168,6 +168,7 @@ export const api = {
   exams: {
     getAll: () => fetchWithAuth<Exam[]>('/exams'),
     getById: (id: string) => fetchWithAuth<Exam>(`/exams/${id}`),
+    getByClass: (classId: string) => fetchWithAuth<Exam[]>(`/exams/class/${classId}`),
     create: (examData: any) =>
       fetchWithAuth<Exam>('/exams', {
         method: 'POST',
@@ -213,6 +214,9 @@ export const api = {
       fetchWithAuth(`/users/${id}`, {
         method: 'DELETE',
       }),
+      getAllStudents: (classId?: string) =>
+        fetchWithAuth<Student[]>(`/users/students?class=${classId}`),
+      getAllTeachers: () => fetchWithAuth<Teacher[]>('/users/teachers'),
   },
 
   // Dashboard endpoints
@@ -378,6 +382,51 @@ export const api = {
       }),
     getStudents: (id: string) =>
       fetchWithAuth<Student[]>(`/classes/${id}/students`),
+
+    addStudents: (id: string, studentIds: string[]) =>
+      fetchWithAuth(`/classes/${id}/students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ studentIds }),
+      }),
+
+    removeStudents: (id: string, studentIds: string[]) =>
+      fetchWithAuth(`/classes/${id}/remove-students`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        body: JSON.stringify({ studentIds }),
+      }),
+  },
+
+  // Materials endpoints
+  materials: {
+    getAll: () => fetchWithAuth<any[]>('/materials'),
+    getById: (id: string) => fetchWithAuth<any>(`/materials/${id}`),
+    getByClass: (classId: string) => fetchWithAuth<any[]>(`/materials/class/${classId}`),
+    create: (formData: FormData) => {
+      return fetch(`${API_URL}/materials`, {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      }).then(response => {
+        if (!response.ok) throw new Error('Failed to upload material');
+        return response.json();
+      });
+    },
+    update: (id: string, formData: FormData) => {
+      return fetch(`${API_URL}/materials/${id}`, {
+        method: 'PUT',
+        body: formData,
+        credentials: 'include',
+      }).then(response => {
+        if (!response.ok) throw new Error('Failed to update material');
+        return response.json();
+      });
+    },
+    delete: (id: string) =>
+      fetchWithAuth(`/materials/${id}`, {
+        method: 'DELETE',
+      }),
   },
 };
 
@@ -435,10 +484,12 @@ export const teacherApi = {
   }
 };
 
+
+
 // Student Management APIs
 export const studentApi = {
   getAllStudents: async (classFilter?: string) => {
-    const url = classFilter 
+    const url = classFilter
       ? `${API_URL}/users/students?class=${classFilter}`
       : `${API_URL}/users/students`;
     const response = await fetch(url, {
@@ -537,12 +588,25 @@ export const classApi = {
   },
 
   deleteClass: async (id: string) => {
-    const response = await fetch(`${API_URL}/classes/${id}`, {
-      method: 'DELETE',
-      credentials: 'include'
-    });
-    if (!response.ok) throw new Error('Failed to delete class');
-    return response.json();
+    try {
+      const response = await axios.delete(`${API_URL}/classes/${id}`, {
+        withCredentials: true,
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        }
+      });
+
+      if (response.status !== 200) throw new Error('Failed to delete class');
+      return response.data;
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response) {
+        // Extract the error message from the response
+        const errorMessage = error.response.data.message || 'Failed to delete class';
+        throw new Error(errorMessage);
+      }
+      // Re-throw the original error if it's not an Axios error
+      throw error;
+    }
   }
 };
 
@@ -626,4 +690,5 @@ export const getExamAnalytics = async (classFilter?: string, subjectFilter?: str
   return response.json();
 };
 
-export default api; 
+export default api;
+

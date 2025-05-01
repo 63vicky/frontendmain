@@ -54,10 +54,10 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
     <AuthCheck requiredRole={role}>
       <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
         <Suspense fallback={<div>Loading...</div>}>
-          <DashboardContent 
-            children={children} 
-            role={role} 
-            isMobileMenuOpen={isMobileMenuOpen} 
+          <DashboardContent
+            children={children}
+            role={role}
+            isMobileMenuOpen={isMobileMenuOpen}
             setIsMobileMenuOpen={setIsMobileMenuOpen}
             pathname={pathname}
             handleGoBack={handleGoBack}
@@ -68,21 +68,21 @@ export default function DashboardLayout({ children, role }: DashboardLayoutProps
   )
 }
 
-function DashboardContent({ 
-  children, 
-  role, 
-  isMobileMenuOpen, 
+function DashboardContent({
+  children,
+  role,
+  isMobileMenuOpen,
   setIsMobileMenuOpen,
   pathname,
   handleGoBack
-}: DashboardLayoutProps & { 
-  isMobileMenuOpen: boolean; 
+}: DashboardLayoutProps & {
+  isMobileMenuOpen: boolean;
   setIsMobileMenuOpen: (value: boolean) => void;
   pathname: string;
   handleGoBack: () => void;
 }) {
   const searchParams = useSearchParams()
-  
+
   const getNavItems = (role: string) => {
     const baseItems = [
       {
@@ -191,6 +191,11 @@ function DashboardContent({
       return [
         ...baseItems.slice(0, 1),
         {
+          name: "My Classes",
+          href: `/dashboard/${role}/classes`,
+          icon: <School className="h-5 w-5" />,
+        },
+        {
           name: "Available Exams",
           href: `/dashboard/${role}?tab=exams`,
           icon: <BookOpen className="h-5 w-5" />,
@@ -250,7 +255,7 @@ function DashboardContent({
                 Dashboard
               </Link>
               <Button onClick={handleLogout} variant="outline">
-                
+
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
                 {/* </Link> */}

@@ -73,12 +73,31 @@ export default function SubjectManagement() {
     classes: [] as string[],
     status: "Active" as "Active" | "Inactive"
   })
+  const [classSearchQuery, setClassSearchQuery] = useState("");
 
   useEffect(() => {
     fetchSubjects()
     fetchTeachers()
     fetchClasses()
   }, [])
+
+  // Handle clicking outside of the classes dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const dropdown = document.getElementById('classesDropdown');
+      const button = document.querySelector('[data-dropdown-toggle="classesDropdown"]');
+
+      if (dropdown && !dropdown.contains(event.target as Node) &&
+          button && !button.contains(event.target as Node)) {
+        dropdown.classList.add('hidden');
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   const fetchSubjects = async () => {
     try {
@@ -111,7 +130,7 @@ export default function SubjectManagement() {
   const fetchClasses = async () => {
     try {
       const data = await classApi.getAllClasses()
-      setClasses(data)
+      setClasses(data.data)
     } catch (error) {
       toast({
         title: "Error",
@@ -169,6 +188,7 @@ export default function SubjectManagement() {
       }
       setShowAddDialog(false)
       fetchSubjects()
+      setSelectedSubject(null)
     } catch (error) {
       toast({
         title: "Error",
@@ -459,21 +479,141 @@ export default function SubjectManagement() {
               <label htmlFor="classes" className="text-right font-medium">
                 Classes
               </label>
-              <Select
-                value={formData.classes[0] || ""}
-                onValueChange={(value) => setFormData({ ...formData, classes: [value] })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select a class" />
-                </SelectTrigger>
-                <SelectContent>
-                  {classes.map((cls) => (
-                    <SelectItem key={cls._id} value={cls.name}>
-                      {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="col-span-3 space-y-2">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {formData.classes.length > 0 ? (
+                    formData.classes.map((className, index) => (
+                      <Badge key={index} className="px-3 py-1 flex items-center gap-1">
+                        {className}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updatedClasses = [...formData.classes];
+                            updatedClasses.splice(index, 1);
+                            setFormData({ ...formData, classes: updatedClasses });
+                          }}
+                          className="ml-1 rounded-full hover:bg-red-500/20 focus:outline-none"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                          </svg>
+                        </button>
+                      </Badge>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">No classes selected</div>
+                  )}
+                </div>
+                <div className="relative">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-between text-left font-normal"
+                    data-dropdown-toggle="classesDropdown"
+                    onClick={() => document.getElementById('classesDropdown')?.classList.toggle('hidden')}
+                  >
+                    <span>
+                      {formData.classes.length > 0
+                        ? `${formData.classes.length} class${formData.classes.length > 1 ? 'es' : ''} selected`
+                        : 'Select classes'}
+                    </span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ml-2">
+                      <path d="m6 9 6 6 6-6"/>
+                    </svg>
+                  </Button>
+                  <div
+                    id="classesDropdown"
+                    className="absolute z-10 w-full mt-1 bg-white border rounded-md shadow-lg hidden max-h-60 overflow-auto"
+                  >
+                    <div className="p-2 space-y-2">
+                      <div className="sticky top-0 bg-white pb-2">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                          <Input
+                            placeholder="Search classes..."
+                            value={classSearchQuery}
+                            onChange={(e) => setClassSearchQuery(e.target.value)}
+                            className="pl-8 w-full"
+                          />
+                        </div>
+                        <div className="flex justify-between mt-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (classes && classes.length > 0) {
+                                const allClassNames = classes.map(cls => cls.name);
+                                setFormData(prev => ({
+                                  ...prev,
+                                  classes: allClassNames
+                                }));
+                              }
+                            }}
+                          >
+                            Select All
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setFormData(prev => ({
+                                ...prev,
+                                classes: []
+                              }));
+                            }}
+                          >
+                            Clear All
+                          </Button>
+                        </div>
+                      </div>
+
+                      {classes && classes.length > 0 ? (
+                        classes
+                          .filter(cls =>
+                            cls.name.toLowerCase().includes(classSearchQuery.toLowerCase()) ||
+                            cls.section.toLowerCase().includes(classSearchQuery.toLowerCase())
+                          )
+                          .map((cls) => (
+                            <div key={cls._id} className="flex items-center space-x-2 p-2 hover:bg-slate-100 rounded-md">
+                              <input
+                                type="checkbox"
+                                id={`class-${cls._id}`}
+                                checked={formData.classes.includes(cls.name)}
+                                onChange={(e) => {
+                                  const isChecked = e.target.checked;
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    classes: isChecked
+                                      ? [...prev.classes, cls.name]
+                                      : prev.classes.filter(c => c !== cls.name)
+                                  }));
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                              />
+                              <label htmlFor={`class-${cls._id}`} className="text-sm font-medium text-gray-700 cursor-pointer">
+                                {cls.name} ({cls.section})
+                              </label>
+                            </div>
+                          ))
+                      ) : (
+                        <div className="p-2 text-sm text-gray-500">No classes available</div>
+                      )}
+
+                      {classes && classes.length > 0 &&
+                        classes.filter(cls =>
+                          cls.name.toLowerCase().includes(classSearchQuery.toLowerCase()) ||
+                          cls.section.toLowerCase().includes(classSearchQuery.toLowerCase())
+                        ).length === 0 && (
+                          <div className="p-2 text-sm text-gray-500">No matching classes found</div>
+                        )
+                      }
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <label htmlFor="status" className="text-right font-medium">

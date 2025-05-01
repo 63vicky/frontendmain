@@ -5,22 +5,46 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import DashboardLayout from "@/components/dashboard-layout"
-import { BookOpen, Clock, CheckCircle, BarChart, Award, Calendar, AlertTriangle } from "lucide-react"
+import { BookOpen, Clock, CheckCircle, BarChart, Award, Calendar, AlertTriangle, Loader2 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
+import { api } from "@/lib/api"
+import { Exam, Result, DashboardStats } from "@/lib/types"
 
-export default function TeacherDashboard() {
+// Extended Result interface to include additional properties
+interface ExtendedResult extends Result {
+  rating?: string;
+  examId: {
+    title: string;
+    subject: string;
+    attempts?: {
+      current: number;
+      max: number;
+    };
+  };
+}
+import { authService } from "@/lib/services/auth"
+import { useToast } from "@/hooks/use-toast"
+
+export default function StudentDashboard() {
   return (
     <Suspense fallback={<div>Loading...</div>}>
-      <StudentDashboardConent />
+      <StudentDashboardContent />
     </Suspense>
   )
 }
 
-function StudentDashboardConent() {
+function StudentDashboardContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("overview")
+  const [loading, setLoading] = useState(true)
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
+  const [availableExams, setAvailableExams] = useState<Exam[]>([])
+  const [upcomingExams, setUpcomingExams] = useState<Exam[]>([])
+  const [recentResults, setRecentResults] = useState<ExtendedResult[]>([])
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const tab = searchParams.get("tab")
@@ -30,6 +54,74 @@ function StudentDashboardConent() {
       setActiveTab("overview")
     }
   }, [searchParams])
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true)
+        const user = authService.getCurrentUser()
+
+        if (!user || user.role !== "student") {
+          toast({
+            title: "Error",
+            description: "You must be logged in as a student to view this page",
+            variant: "destructive"
+          })
+          router.push("/login?role=student")
+          return
+        }
+
+        // Fetch dashboard stats
+        const statsResponse = await api.get<DashboardStats>('/dashboard/student/' + user.id + '/stats')
+        if (statsResponse.data) {
+          setDashboardStats(statsResponse.data)
+        }
+
+        // No need to fetch class information here as we have a dedicated classes page
+
+        // Fetch available exams for the student's class
+        const examsResponse = await api.get<Exam[]>(`/exams/class/${user.class}`)
+        if (examsResponse.data) {
+          const exams = examsResponse.data
+
+          // Filter exams by status
+          const available = exams && exams.length > 0 && exams.filter(exam =>
+            exam.status === 'active' &&
+            new Date(exam.startDate) <= new Date() &&
+            new Date(exam.endDate) >= new Date()
+          )
+
+          const upcoming = exams && exams.length > 0 && exams.filter(exam =>
+            exam.status === 'scheduled' ||
+            (exam.status === 'active' && new Date(exam.startDate) > new Date())
+          ).slice(0, 3) // Get only 3 upcoming exams
+
+          setAvailableExams(available || [])
+          setUpcomingExams(upcoming || [])
+        }
+
+        // Fetch student's results
+        const resultsResponse = await api.get<any>(`/results/student/${user._id}`)
+        if (resultsResponse.data) {
+          // Cast the results to our extended type
+          setRecentResults(resultsResponse.data.slice(0, 4) as ExtendedResult[]) // Get only 4 recent results
+        }
+
+        setLoading(false)
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error)
+        setError("Failed to load dashboard data. Please try again later.")
+        setLoading(false)
+        toast({
+          title: "Error",
+          description: "Failed to load dashboard data. Please try again later.",
+          variant: "destructive"
+        })
+      }
+    }
+
+    fetchData()
+  }, [toast, router])
 
   const handleTabChange = (value: string) => {
     setActiveTab(value)
@@ -73,175 +165,214 @@ function StudentDashboardConent() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="space-y-4 pt-4">
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-              <Card className="border-0 shadow-md bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/30 dark:to-slate-800">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
-                    <Calendar className="h-4 w-4 mr-2 text-blue-500 dark:text-blue-400" />
-                    Upcoming Exams
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">3</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-md bg-gradient-to-br from-green-50 to-white dark:from-green-900/30 dark:to-slate-800">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
-                    <CheckCircle className="h-4 w-4 mr-2 text-green-500 dark:text-green-400" />
-                    Completed Exams
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-green-700 dark:text-green-400">8</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-md bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/30 dark:to-slate-800">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
-                    <BarChart className="h-4 w-4 mr-2 text-purple-500 dark:text-purple-400" />
-                    Average Score
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">78%</div>
-                </CardContent>
-              </Card>
-              <Card className="border-0 shadow-md bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/30 dark:to-slate-800">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
-                    <Award className="h-4 w-4 mr-2 text-amber-500 dark:text-amber-400" />
-                    Best Score
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">92%</div>
-                </CardContent>
-              </Card>
-            </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <Card className="col-span-1 border-0 shadow-md overflow-hidden bg-white dark:bg-slate-800">
-                <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 text-white">
-                  <CardTitle className="flex items-center">
-                    <Calendar className="h-5 w-5 mr-2" />
-                    Upcoming Exams
-                  </CardTitle>
-                  <CardDescription className="text-blue-100">Exams scheduled in the next 7 days</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {[
-                      {
-                        name: "Mathematics - Chapter 3",
-                        date: "Tomorrow, 10:00 AM",
-                        attempts: 0,
-                        maxAttempts: 5,
-                        urgent: true,
-                      },
-                      { name: "Science - Quiz 4", date: "May 2, 2:00 PM", attempts: 0, maxAttempts: 5, urgent: false },
-                      {
-                        name: "English - Grammar Test",
-                        date: "May 5, 9:30 AM",
-                        attempts: 0,
-                        maxAttempts: 5,
-                        urgent: false,
-                      },
-                    ].map((exam, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50"
-                      >
-                        <div>
-                          <div className="flex items-center">
-                            <p className="font-medium text-slate-900 dark:text-slate-100">{exam.name}</p>
-                            {exam.urgent && (
-                              <Badge variant="destructive" className="ml-2 px-1.5 py-0">
-                                <AlertTriangle className="h-3 w-3 mr-1" />
-                                Soon
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground dark:text-slate-400 flex items-center">
-                            <Clock className="h-3 w-3 mr-1 inline" />
-                            {exam.date}
-                          </p>
-                          <p className="text-xs text-muted-foreground dark:text-slate-500">
-                            Attempts: {exam.attempts}/{exam.maxAttempts}
-                          </p>
+
+          <TabsContent value="overview" className="space-y-4 pt-4">
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2">Loading dashboard data...</span>
+              </div>
+            ) : error ? (
+              <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+                <p className="flex items-center">
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  {error}
+                </p>
+                <Button
+                  variant="outline"
+                  className="mt-2"
+                  onClick={() => window.location.reload()}
+                >
+                  Retry
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                  <Card className="border-0 shadow-md bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/30 dark:to-slate-800">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
+                        <Calendar className="h-4 w-4 mr-2 text-blue-500 dark:text-blue-400" />
+                        Upcoming Exams
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-blue-700 dark:text-blue-400">
+                        {dashboardStats?.upcomingExams || upcomingExams.length}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-0 shadow-md bg-gradient-to-br from-green-50 to-white dark:from-green-900/30 dark:to-slate-800">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-500 dark:text-green-400" />
+                        Completed Exams
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-green-700 dark:text-green-400">
+                        {dashboardStats?.completedExams || recentResults.length}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-0 shadow-md bg-gradient-to-br from-purple-50 to-white dark:from-purple-900/30 dark:to-slate-800">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
+                        <BarChart className="h-4 w-4 mr-2 text-purple-500 dark:text-purple-400" />
+                        Average Score
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-purple-700 dark:text-purple-400">
+                        {dashboardStats?.averageScore ? `${dashboardStats.averageScore}%` : 'N/A'}
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-0 shadow-md bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/30 dark:to-slate-800">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium flex items-center text-slate-700 dark:text-slate-300">
+                        <Award className="h-4 w-4 mr-2 text-amber-500 dark:text-amber-400" />
+                        Best Score
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
+                        {recentResults.length > 0
+                          ? `${Math.max(...recentResults.map(r => r.score))}%`
+                          : 'N/A'}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Card className="col-span-1 border-0 shadow-md overflow-hidden bg-white dark:bg-slate-800">
+                    <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 text-white">
+                      <CardTitle className="flex items-center">
+                        <Calendar className="h-5 w-5 mr-2" />
+                        Upcoming Exams
+                      </CardTitle>
+                      <CardDescription className="text-blue-100">Exams scheduled in the next 7 days</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {upcomingExams.length === 0 ? (
+                        <div className="p-6 text-center text-muted-foreground">
+                          No upcoming exams scheduled
                         </div>
-                        <Button
-                          asChild
-                          size="sm"
-                          className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
-                        >
-                          <Link href={`/exam/${i}`}>Take Exam</Link>
+                      ) : (
+                        <div className="divide-y divide-slate-200 dark:divide-slate-700">
+                          {upcomingExams.map((exam) => {
+                            const startDate = new Date(exam.startDate);
+                            const today = new Date();
+                            const diffTime = Math.abs(startDate.getTime() - today.getTime());
+                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                            const isUrgent = diffDays <= 2;
+
+                            return (
+                              <div
+                                key={exam._id}
+                                className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                              >
+                                <div>
+                                  <div className="flex items-center">
+                                    <p className="font-medium text-slate-900 dark:text-slate-100">{exam.title}</p>
+                                    {isUrgent && (
+                                      <Badge variant="destructive" className="ml-2 px-1.5 py-0">
+                                        <AlertTriangle className="h-3 w-3 mr-1" />
+                                        Soon
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground dark:text-slate-400 flex items-center">
+                                    <Clock className="h-3 w-3 mr-1 inline" />
+                                    {startDate.toLocaleDateString()} {startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground dark:text-slate-500">
+                                    Attempts: {exam.attempts?.current || 0}/{exam.attempts?.max || 1}
+                                  </p>
+                                </div>
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  disabled={startDate > today}
+                                  className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-700 dark:hover:bg-blue-600"
+                                >
+                                  <Link href={`/exam/${exam._id}`}>
+                                    {startDate > today ? "Not Available Yet" : "Take Exam"}
+                                  </Link>
+                                </Button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  <Card className="col-span-1 border-0 shadow-md overflow-hidden bg-white dark:bg-slate-800">
+                    <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 text-white">
+                      <CardTitle className="flex items-center">
+                        <Award className="h-5 w-5 mr-2" />
+                        Recent Results
+                      </CardTitle>
+                      <CardDescription className="text-green-100">Your latest exam scores</CardDescription>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {recentResults.length === 0 ? (
+                        <div className="p-6 text-center text-muted-foreground">
+                          No exam results available
+                        </div>
+                      ) : (
+                        <div className="divide-y divide-slate-200 dark:divide-slate-700">
+                          {recentResults.map((result) => (
+                            <div key={result._id} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="font-medium text-slate-900 dark:text-slate-100">
+                                  {result.examId.title || "Exam"}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium text-slate-900 dark:text-slate-100">{result.score}%</p>
+                                  <Badge
+                                    variant={result.rating === "Excellent" ? "default" : "secondary"}
+                                    className={
+                                      result.rating === "Excellent"
+                                        ? "bg-green-500 dark:bg-green-600"
+                                        : "bg-blue-500 dark:bg-blue-600"
+                                    }
+                                  >
+                                    {result.rating}
+                                  </Badge>
+                                </div>
+                              </div>
+                              <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    result.score >= 85
+                                      ? "bg-green-500 dark:bg-green-600"
+                                      : result.score >= 70
+                                        ? "bg-blue-500 dark:bg-blue-600"
+                                        : result.score >= 50
+                                          ? "bg-yellow-500 dark:bg-yellow-600"
+                                          : "bg-red-500 dark:bg-red-600"
+                                  }`}
+                                  style={{ width: `${result.score}%` }}
+                                />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="p-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
+                        <Button variant="outline" className="w-full border-slate-200 dark:border-slate-600" asChild>
+                          <Link href="/dashboard/student?tab=results">View All Results</Link>
                         </Button>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="col-span-1 border-0 shadow-md overflow-hidden bg-white dark:bg-slate-800">
-                <CardHeader className="bg-gradient-to-r from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 text-white">
-                  <CardTitle className="flex items-center">
-                    <Award className="h-5 w-5 mr-2" />
-                    Recent Results
-                  </CardTitle>
-                  <CardDescription className="text-green-100">Your latest exam scores</CardDescription>
-                </CardHeader>
-                <CardContent className="p-0">
-                  <div className="divide-y divide-slate-200 dark:divide-slate-700">
-                    {[
-                      { name: "History - Chapter 4", score: 85, rating: "Excellent" },
-                      { name: "Mathematics - Chapter 2", score: 72, rating: "Good" },
-                      { name: "Science - Quiz 3", score: 90, rating: "Excellent" },
-                      { name: "English - Vocabulary Test", score: 78, rating: "Good" },
-                    ].map((result, i) => (
-                      <div key={i} className="p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                        <div className="flex items-center justify-between mb-1">
-                          <p className="font-medium text-slate-900 dark:text-slate-100">{result.name}</p>
-                          <div className="flex items-center gap-2">
-                            <p className="font-medium text-slate-900 dark:text-slate-100">{result.score}%</p>
-                            <Badge
-                              variant={result.rating === "Excellent" ? "default" : "secondary"}
-                              className={
-                                result.rating === "Excellent"
-                                  ? "bg-green-500 dark:bg-green-600"
-                                  : "bg-blue-500 dark:bg-blue-600"
-                              }
-                            >
-                              {result.rating}
-                            </Badge>
-                          </div>
-                        </div>
-                        <div className="h-2 w-full rounded-full bg-slate-100 dark:bg-slate-700">
-                          <div
-                            className={`h-2 rounded-full ${
-                              result.score >= 85
-                                ? "bg-green-500 dark:bg-green-600"
-                                : result.score >= 70
-                                  ? "bg-blue-500 dark:bg-blue-600"
-                                  : result.score >= 50
-                                    ? "bg-yellow-500 dark:bg-yellow-600"
-                                    : "bg-red-500 dark:bg-red-600"
-                            }`}
-                            style={{ width: `${result.score}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-700/50 border-t border-slate-200 dark:border-slate-700">
-                    <Button variant="outline" className="w-full border-slate-200 dark:border-slate-600" asChild>
-                      <Link href="/dashboard/student?tab=results">View All Results</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="exams" className="pt-4">
@@ -251,98 +382,98 @@ function StudentDashboardConent() {
                 <CardDescription className="text-blue-100">Exams you can take now or in the future</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="divide-y">
-                  {[
-                    {
-                      name: "Mathematics - Chapter 3",
-                      subject: "Mathematics",
-                      date: "Apr 30 - May 7",
-                      duration: "60 min",
-                      attempts: 0,
-                      maxAttempts: 5,
-                      status: "Available",
-                      points: 100,
-                    },
-                    {
-                      name: "Science - Quiz 4",
-                      subject: "Science",
-                      date: "May 2 - May 9",
-                      duration: "45 min",
-                      attempts: 0,
-                      maxAttempts: 5,
-                      status: "Available",
-                      points: 100,
-                    },
-                    {
-                      name: "English - Grammar Test",
-                      subject: "English",
-                      date: "May 5 - May 12",
-                      duration: "30 min",
-                      attempts: 0,
-                      maxAttempts: 5,
-                      status: "Available",
-                      points: 100,
-                    },
-                    {
-                      name: "History - Final Exam",
-                      subject: "History",
-                      date: "May 15 - May 22",
-                      duration: "90 min",
-                      attempts: 0,
-                      maxAttempts: 5,
-                      status: "Upcoming",
-                      points: 100,
-                    },
-                  ].map((exam, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50"
-                    >
-                      <div className="space-y-1 mb-4 md:mb-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium text-lg">{exam.name}</p>
-                          <Badge
-                            variant={exam.status === "Available" ? "default" : "secondary"}
-                            className={exam.status === "Available" ? "bg-green-500" : ""}
-                          >
-                            {exam.status}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground">Subject: {exam.subject}</p>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-                          <span className="flex items-center">
-                            <Calendar className="h-3.5 w-3.5 mr-1" />
-                            Available: {exam.date}
-                          </span>
-                          <span className="flex items-center">
-                            <Clock className="h-3.5 w-3.5 mr-1" />
-                            Duration: {exam.duration}
-                          </span>
-                          <span className="flex items-center">
-                            <Award className="h-3.5 w-3.5 mr-1" />
-                            Points: {exam.points}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          Attempts: {exam.attempts}/{exam.maxAttempts}
-                        </p>
-                      </div>
+                {loading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-2">Loading exams...</span>
+                  </div>
+                ) : error ? (
+                  <div className="p-6 text-center">
+                    <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+                      <p className="flex items-center">
+                        <AlertTriangle className="h-5 w-5 mr-2" />
+                        {error}
+                      </p>
                       <Button
-                        disabled={exam.status !== "Available"}
-                        className={`w-full md:w-auto ${
-                          exam.status === "Available"
-                            ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
-                            : ""
-                        }`}
-                        asChild
+                        variant="outline"
+                        className="mt-2"
+                        onClick={() => window.location.reload()}
                       >
-                        <Link href={`/exam/${i}`}>
-                          {exam.status === "Available" ? "Start Exam" : "Not Available Yet"}
-                        </Link>
+                        Retry
                       </Button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : availableExams.length === 0 && upcomingExams.length === 0 ? (
+                  <div className="p-6 text-center text-muted-foreground">
+                    No exams available at this time
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {[...availableExams, ...upcomingExams].map((exam) => {
+                      const startDate = new Date(exam.startDate);
+                      const endDate = new Date(exam.endDate);
+                      const today = new Date();
+
+                      // Determine exam status
+                      let status = "Upcoming";
+                      if (exam.status === 'active' && startDate <= today && endDate >= today) {
+                        status = "Available";
+                      } else if (exam.status === 'completed' || endDate < today) {
+                        status = "Completed";
+                      }
+
+                      return (
+                        <div
+                          key={exam._id}
+                          className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50"
+                        >
+                          <div className="space-y-1 mb-4 md:mb-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-lg">{exam.title}</p>
+                              <Badge
+                                variant={status === "Available" ? "default" : "secondary"}
+                                className={status === "Available" ? "bg-green-500" : ""}
+                              >
+                                {status}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">Subject: {exam.subject}</p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
+                              <span className="flex items-center">
+                                <Calendar className="h-3.5 w-3.5 mr-1" />
+                                Available: {startDate.toLocaleDateString()} - {endDate.toLocaleDateString()}
+                              </span>
+                              <span className="flex items-center">
+                                <Clock className="h-3.5 w-3.5 mr-1" />
+                                Duration: {exam.duration} min
+                              </span>
+                              <span className="flex items-center">
+                                <Award className="h-3.5 w-3.5 mr-1" />
+                                Points: {exam.questions && exam.questions.length ? exam.questions.length * 10 : 100}
+                              </span>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              Attempts: {exam.attempts?.current || 0}/{exam.attempts?.max || 1}
+                            </p>
+                          </div>
+                          <Button
+                            disabled={status !== "Available"}
+                            className={`w-full md:w-auto ${
+                              status === "Available"
+                                ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                                : ""
+                            }`}
+                            asChild
+                          >
+                            <Link href={`/exam/${exam._id}`}>
+                              {status === "Available" ? "Start Exam" : "Not Available Yet"}
+                            </Link>
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -354,93 +485,87 @@ function StudentDashboardConent() {
                 <CardDescription className="text-green-100">View your exam history and performance</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
-                <div className="divide-y">
-                  {[
-                    {
-                      name: "History - Chapter 4",
-                      subject: "History",
-                      date: "Apr 20, 2025",
-                      attempts: 2,
-                      maxAttempts: 5,
-                      bestScore: 85,
-                      rating: "Excellent",
-                    },
-                    {
-                      name: "Mathematics - Chapter 2",
-                      subject: "Mathematics",
-                      date: "Apr 15, 2025",
-                      attempts: 3,
-                      maxAttempts: 5,
-                      bestScore: 72,
-                      rating: "Good",
-                    },
-                    {
-                      name: "Science - Quiz 3",
-                      subject: "Science",
-                      date: "Apr 10, 2025",
-                      attempts: 1,
-                      maxAttempts: 5,
-                      bestScore: 90,
-                      rating: "Excellent",
-                    },
-                    {
-                      name: "English - Vocabulary Test",
-                      subject: "English",
-                      date: "Apr 5, 2025",
-                      attempts: 2,
-                      maxAttempts: 5,
-                      bestScore: 78,
-                      rating: "Good",
-                    },
-                  ].map((result, i) => (
-                    <div
-                      key={i}
-                      className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50"
-                    >
-                      <div className="space-y-1 mb-4 md:mb-0">
-                        <p className="font-medium text-lg">{result.name}</p>
-                        <p className="text-sm text-muted-foreground">Subject: {result.subject}</p>
-                        <p className="text-sm text-muted-foreground flex items-center">
-                          <Calendar className="h-3.5 w-3.5 mr-1" />
-                          Completed: {result.date}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          Attempts: {result.attempts}/{result.maxAttempts}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <div className="h-2 w-24 rounded-full bg-slate-100">
-                            <div
-                              className={`h-2 rounded-full ${
-                                result.bestScore >= 85
-                                  ? "bg-green-500"
-                                  : result.bestScore >= 70
-                                    ? "bg-blue-500"
-                                    : result.bestScore >= 50
-                                      ? "bg-yellow-500"
-                                      : "bg-red-500"
-                              }`}
-                              style={{ width: `${result.bestScore}%` }}
-                            />
-                          </div>
-                          <p className="text-sm font-medium">Best Score: {result.bestScore}%</p>
-                          <Badge
-                            variant={result.rating === "Excellent" ? "default" : "secondary"}
-                            className={result.rating === "Excellent" ? "bg-green-500" : "bg-blue-500"}
-                          >
-                            {result.rating}
-                          </Badge>
-                        </div>
-                      </div>
+                {loading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-2">Loading results...</span>
+                  </div>
+                ) : error ? (
+                  <div className="p-6 text-center">
+                    <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+                      <p className="flex items-center">
+                        <AlertTriangle className="h-5 w-5 mr-2" />
+                        {error}
+                      </p>
                       <Button
                         variant="outline"
-                        className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
-                        asChild
+                        className="mt-2"
+                        onClick={() => window.location.reload()}
                       >
-                        <Link href={`/result/${i}`}>View Details</Link>
+                        Retry
                       </Button>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ) : recentResults.length === 0 ? (
+                  <div className="p-6 text-center text-muted-foreground">
+                    No exam results available
+                  </div>
+                ) : (
+                  <div className="divide-y">
+                    {recentResults.map((result) => {
+                      const completedDate = new Date(result.submittedAt || result.createdAt);
+
+                      return (
+                        <div
+                          key={result._id}
+                          className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50"
+                        >
+                          <div className="space-y-1 mb-4 md:mb-0">
+                            <p className="font-medium text-lg">{result.examId?.title || "Exam"}</p>
+                            <p className="text-sm text-muted-foreground">Subject: {result.examId?.subject || "N/A"}</p>
+                            <p className="text-sm text-muted-foreground flex items-center">
+                              <Calendar className="h-3.5 w-3.5 mr-1" />
+                              Completed: {completedDate.toLocaleDateString()}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              Attempts: {result.examId?.attempts?.current || 1}/{result.examId?.attempts?.max || 1}
+                            </p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="h-2 w-24 rounded-full bg-slate-100">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    result.score >= 85
+                                      ? "bg-green-500"
+                                      : result.score >= 70
+                                        ? "bg-blue-500"
+                                        : result.score >= 50
+                                          ? "bg-yellow-500"
+                                          : "bg-red-500"
+                                  }`}
+                                  style={{ width: `${result.score}%` }}
+                                />
+                              </div>
+                              <p className="text-sm font-medium">Score: {result.score}%</p>
+                              <Badge
+                                variant={result.rating === "Excellent" ? "default" : "secondary"}
+                                className={result.rating === "Excellent" ? "bg-green-500" : "bg-blue-500"}
+                              >
+                                {result.rating}
+                              </Badge>
+                            </div>
+                          </div>
+                          <Button
+                            variant="outline"
+                            className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+                            asChild
+                          >
+                            <Link href={`/result/${result._id}`}>View Details</Link>
+                          </Button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

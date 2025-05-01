@@ -8,7 +8,8 @@ const {
   updateClass,
   deleteClass,
   getClassStudents,
-  addStudentsToClass
+  addStudentsToClass,
+  removeStudentsFromClass
 } = require('../controllers/classController');
 
 // Get all classes
@@ -32,4 +33,9 @@ router.put('/:id', authenticate, authorize('principal', 'teacher'), updateClass)
 // Delete class (admin only)
 router.delete('/:id', authenticate, authorize('principal', 'teacher'), deleteClass);
 
+// Remove students from class
+router.post('/:id/remove-students', authenticate, authorize('principal', 'teacher'), removeStudentsFromClass);
+
 module.exports = router; 
+
+

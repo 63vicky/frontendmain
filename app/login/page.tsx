@@ -72,7 +72,6 @@ function LoginContent() {
       toast({
         title: "Login Successful",
         description: `Welcome back, ${user.name}!`,
-        duration: 3000,
       })
 
       // Redirect based on role
@@ -89,7 +88,6 @@ function LoginContent() {
         title: "Login Failed",
         description: errorMessage,
         variant: "destructive",
-        duration: 3000,
       })
     } finally {
       setIsLoading(false)

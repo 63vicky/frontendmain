@@ -6,7 +6,8 @@ const {
   getTeacherExams,
   getExam,
   updateExam,
-  deleteExam
+  deleteExam,
+  getExamsByClass
 } = require('../controllers/examController');
 
 // Protect all routes
@@ -18,8 +19,12 @@ router.route('/')
   .get(authorize('teacher'), getTeacherExams);
 
 router.route('/:id')
-  .get(authorize('teacher'), getExam)
+  .get(getExam)  // Allow all authenticated users to view exam details
   .put(authorize('teacher'), updateExam)
   .delete(authorize('teacher'), deleteExam);
 
-module.exports = router; 
+// Class exams route - accessible by all authenticated users
+router.route('/class/:classId')
+  .get(getExamsByClass);
+
+module.exports = router;

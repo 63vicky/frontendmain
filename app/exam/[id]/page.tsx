@@ -18,161 +18,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Clock, AlertCircle, CheckCircle, XCircle, HelpCircle } from "lucide-react"
+import { Clock, AlertCircle, CheckCircle, XCircle, HelpCircle, Loader2 } from "lucide-react"
+import { api } from "@/lib/api"
+import { authService } from "@/lib/services/auth"
+import { useToast } from "@/hooks/use-toast"
+import { Exam, Question } from "@/lib/types"
 
-// Mock exam data
-const mockExam = {
-  id: "1",
-  title: "Mathematics - Chapter 3",
-  subject: "Mathematics",
-  class: "Class 8",
-  duration: 60, // in minutes
-  totalQuestions: 10,
-  questions: [
-    {
-      id: 1,
-      text: "What is the value of x in the equation 2x + 5 = 15?",
-      points: 10,
-      difficulty: "Easy",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "5" },
-        { id: "b", text: "7.5" },
-        { id: "c", text: "10" },
-        { id: "d", text: "3" },
-      ],
-      correctAnswer: "a",
-      customTime: 30, // in seconds
-    },
-    {
-      id: 2,
-      text: "If a triangle has sides of length 3, 4, and 5, what type of triangle is it?",
-      points: 10,
-      difficulty: "Medium",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "Equilateral" },
-        { id: "b", text: "Isosceles" },
-        { id: "c", text: "Scalene" },
-        { id: "d", text: "Right-angled" },
-      ],
-      correctAnswer: "d",
-      customTime: 30, // in seconds
-    },
-    {
-      id: 3,
-      text: "What is the area of a circle with radius 4 units?",
-      points: 10,
-      difficulty: "Medium",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "8π square units" },
-        { id: "b", text: "16π square units" },
-        { id: "c", text: "4π square units" },
-        { id: "d", text: "12π square units" },
-      ],
-      correctAnswer: "b",
-      customTime: 30, // in seconds
-    },
-    {
-      id: 4,
-      text: "Simplify: (3x² + 2x - 1) - (2x² - 3x + 4)",
-      points: 10,
-      difficulty: "Hard",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "x² + 5x - 5" },
-        { id: "b", text: "5x² - x - 5" },
-        { id: "c", text: "x² + 5x + 3" },
-        { id: "d", text: "x² + 5x - 3" },
-      ],
-      correctAnswer: "a",
-      customTime: 45, // in seconds
-    },
-    {
-      id: 5,
-      text: "The formula for the area of a circle is _______.",
-      points: 10,
-      difficulty: "Easy",
-      type: "Fill-up",
-      correctAnswer: "πr²",
-      customTime: 20, // in seconds
-    },
-    {
-      id: 6,
-      text: "If f(x) = 2x² - 3x + 1, what is f(2)?",
-      points: 10,
-      difficulty: "Medium",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "3" },
-        { id: "b", text: "5" },
-        { id: "c", text: "7" },
-        { id: "d", text: "9" },
-      ],
-      correctAnswer: "b",
-      customTime: 30, // in seconds
-    },
-    {
-      id: 7,
-      text: "The Earth revolves around the Sun.",
-      points: 10,
-      difficulty: "Easy",
-      type: "True/False",
-      correctAnswer: "True",
-      customTime: 10, // in seconds
-    },
-    {
-      id: 8,
-      text: "Solve for x: |x - 3| = 5",
-      points: 10,
-      difficulty: "Hard",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "x = -2 or x = 8" },
-        { id: "b", text: "x = -5 or x = 5" },
-        { id: "c", text: "x = -2 or x = 5" },
-        { id: "d", text: "x = 3 only" },
-      ],
-      correctAnswer: "a",
-      customTime: 45, // in seconds
-    },
-    {
-      id: 9,
-      text: "The value of 5! (5 factorial) is _______.",
-      points: 10,
-      difficulty: "Easy",
-      type: "Fill-up",
-      correctAnswer: "120",
-      customTime: 20, // in seconds
-    },
-    {
-      id: 10,
-      text: "If a square has a perimeter of 20 units, what is its area?",
-      points: 10,
-      difficulty: "Medium",
-      type: "MCQ",
-      options: [
-        { id: "a", text: "16 square units" },
-        { id: "b", text: "25 square units" },
-        { id: "c", text: "36 square units" },
-        { id: "d", text: "100 square units" },
-      ],
-      correctAnswer: "b",
-      customTime: 30, // in seconds
-    },
-  ],
+// Default exam structure to use while loading
+const defaultExam = {
+  _id: "",
+  title: "Loading Exam...",
+  subject: "",
+  class: "",
+  duration: 60,
+  totalQuestions: 0,
+  questions: [],
+  status: "active",
+  startDate: new Date().toISOString(),
+  endDate: new Date().toISOString(),
+  attempts: {
+    current: 0,
+    max: 1
+  },
+  createdBy: "",
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString()
 }
-
-// Ensure all questions have proper time settings
-mockExam.questions = mockExam.questions.map((q) => ({
-  ...q,
-  type: q.type === "multiple-choice" ? "MCQ" : q.type,
-  customTime: q.customTime || (q.type === "MCQ" ? 30 : 10),
-}))
 
 export default function ExamPage({ params }: { params: { id: string } }) {
   const router = useRouter()
+  const { toast } = useToast()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [questionTime, setQuestionTime] = useState<number>(30) // Default time in seconds
@@ -186,15 +61,90 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   const [examStarted, setExamStarted] = useState(false)
   const [fillUpAnswer, setFillUpAnswer] = useState("")
   const [visitedQuestions, setVisitedQuestions] = useState<Set<number>>(new Set([0])) // Start with first question as visited
+  const [exam, setExam] = useState<Exam | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   // Use refs to track timer intervals to prevent double invocation
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null)
   const totalTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Calculate total exam time based on per-question timers
+  // Fetch exam data
+  useEffect(() => {
+    const fetchExam = async () => {
+      try {
+        setLoading(true)
+        const user = authService.getCurrentUser()
+
+        if (!user || user.role !== "student") {
+          toast({
+            title: "Error",
+            description: "You must be logged in as a student to take an exam",
+            variant: "destructive"
+          })
+          router.push("/login?role=student")
+          return
+        }
+
+        // Fetch exam details
+        const examResponse = await api.get<Exam>(`/exams/${params.id}`)
+        if (!examResponse.data) {
+          throw new Error("Exam not found")
+        }
+
+        const examData = examResponse.data
+
+        // Check if exam is available
+        const now = new Date()
+        const startDate = new Date(examData.startDate)
+        const endDate = new Date(examData.endDate)
+
+        if (examData.status !== "active" || now < startDate || now > endDate) {
+          toast({
+            title: "Exam Unavailable",
+            description: "This exam is not currently available for taking",
+            variant: "destructive"
+          })
+          router.push("/dashboard/student?tab=exams")
+          return
+        }
+
+        // Check if student has reached maximum attempts
+        if (examData.attempts && examData.attempts.current >= examData.attempts.max) {
+          toast({
+            title: "Maximum Attempts Reached",
+            description: `You have already used all ${examData.attempts.max} attempts for this exam`,
+            variant: "destructive"
+          })
+          router.push("/dashboard/student?tab=exams")
+          return
+        }
+
+        setExam(examData)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error fetching exam:", error)
+        setError("Failed to load exam data. Please try again later.")
+        setLoading(false)
+        toast({
+          title: "Error",
+          description: "Failed to load exam data. Please try again later.",
+          variant: "destructive"
+        })
+      }
+    }
+
+    fetchExam()
+  }, [params.id, router, toast])
+
+  // Calculate total exam time based on per-question timers or use the exam duration
   const calculateTotalExamTime = () => {
-    return mockExam.questions.reduce((total, question) => {
-      return total + (question.customTime || (question.type === "MCQ" ? 30 : 10))
+    if (!exam || !exam.questions || exam.questions.length === 0) {
+      return exam?.duration ? exam.duration * 60 : 60 * 60; // Default to exam duration or 60 minutes
+    }
+
+    return exam.questions.reduce((total: number, question: any) => {
+      return total + (question.time || (question.type === "multiple-choice" ? 30 : 10))
     }, 0)
   }
 
@@ -205,18 +155,22 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     return `${minutes.toString().padStart(2, "0")}:${remainingSeconds.toString().padStart(2, "0")}`
   }
 
-  const getQuestionTime = (questionType: string) => {
-    // Determine base time based on question type
-    let baseTime = questionType === "MCQ" ? 30 : 10
+  const getQuestionTime = (questionIndex: number) => {
+    if (!exam || !exam.questions || !exam.questions[questionIndex]) {
+      return 30; // Default time
+    }
 
-    // For SCQ, apply adaptive timing reduction
-    if (questionType !== "MCQ" && adaptiveTimeReduction > 0) {
+    const question = exam.questions[questionIndex];
+    // Determine base time based on question type
+    let baseTime = question.type === "multiple-choice" ? 30 : 10
+
+    // For non-MCQ, apply adaptive timing reduction
+    if (question.type !== "multiple-choice" && adaptiveTimeReduction > 0) {
       baseTime = Math.max(5, baseTime - adaptiveTimeReduction)
     }
 
     // Check if the question has a custom time setting
-    const customTime = mockExam.questions[currentQuestion].customTime
-    return customTime || baseTime
+    return question.time || baseTime
   }
 
   // Get time color based on remaining time percentage
@@ -264,11 +218,10 @@ export default function ExamPage({ params }: { params: { id: string } }) {
 
   // Timer effect for individual question timing
   useEffect(() => {
-    if (!examStarted) return
+    if (!examStarted || !exam || !exam.questions || exam.questions.length === 0) return
 
     // Set the time for the current question
-    const question = mockExam.questions[currentQuestion]
-    const newTime = question.customTime || (question.type === "MCQ" ? 30 : Math.max(5, 10 - adaptiveTimeReduction))
+    const newTime = getQuestionTime(currentQuestion)
     setQuestionTime(newTime)
     setTimeLeft(newTime)
 
@@ -285,7 +238,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
             clearInterval(questionTimerRef.current)
           }
           // Auto-skip or submit if time runs out
-          if (currentQuestion < mockExam.questions.length - 1) {
+          if (exam && exam.questions && currentQuestion < exam.questions.length - 1) {
             handleNext()
           } else {
             handleSubmit()
@@ -301,7 +254,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         clearInterval(questionTimerRef.current)
       }
     }
-  }, [currentQuestion, examStarted, adaptiveTimeReduction])
+  }, [currentQuestion, examStarted, adaptiveTimeReduction, exam])
 
   const handleAnswerChange = (value: string) => {
     setAnswers((prev) => ({
@@ -324,7 +277,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   }
 
   const handleNext = () => {
-    if (currentQuestion < mockExam.questions.length - 1) {
+    if (!exam || !exam.questions) return;
+
+    if (currentQuestion < exam.questions.length - 1) {
       // Mark current question as visited/locked
       setVisitedQuestions((prev) => {
         const updated = new Set(prev)
@@ -333,77 +288,109 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         return updated
       })
 
-      // If current question is SCQ and was skipped, increase adaptive time reduction
-      const currentQuestionType = mockExam.questions[currentQuestion].type
-      if (currentQuestionType !== "MCQ" && !answers[currentQuestion]) {
+      // If current question is not multiple-choice and was skipped, increase adaptive time reduction
+      const currentQuestionType = exam.questions[currentQuestion].type
+      if (currentQuestionType !== "multiple-choice" && !answers[currentQuestion]) {
         setAdaptiveTimeReduction((prev) => Math.min(5, prev + 1))
       }
 
       setCurrentQuestion((prev) => prev + 1)
 
       // Reset fill-up answer when moving to next question
-      if (mockExam.questions[currentQuestion + 1].type === "Fill-up") {
+      if (exam.questions[currentQuestion + 1].type === "fill-in-blank") {
         setFillUpAnswer(answers[currentQuestion + 1] || "")
       }
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (!exam || !exam.questions) return;
+
     // Check if all questions are answered
-    if (Object.keys(answers).length < mockExam.questions.length) {
+    if (Object.keys(answers).length < exam.questions.length) {
       setShowWarning(true)
       return
     }
 
     setIsSubmitting(true)
 
-    // Calculate score
-    let score = 0
-    let totalAnswered = 0
+    try {
+      // Calculate score (for client-side display only)
+      let score = 0
+      let totalAnswered = 0
+      const totalPoints = exam.questions.length * 10;
 
-    Object.entries(answers).forEach(([questionIndex, answer]) => {
-      totalAnswered++
-      const question = mockExam.questions[Number.parseInt(questionIndex)]
-      if (question.correctAnswer === answer) {
-        score += question.points
+      Object.entries(answers).forEach(([questionIndex, answer]) => {
+        totalAnswered++
+        const question = exam.questions[Number.parseInt(questionIndex)]
+        if (question.correctAnswer === answer) {
+          score += question.points || 10
+        }
+      })
+
+      const percentage = Math.round((score / totalPoints) * 100)
+
+      // Determine rating based on percentage
+      let rating = "Needs Improvement"
+      if (percentage >= 90) rating = "Excellent"
+      else if (percentage >= 75) rating = "Good"
+      else if (percentage >= 60) rating = "Satisfactory"
+
+      // Send the exam submission to the backend
+      const submissionData = {
+        examId: params.id,
+        answers,
+        timeSpent: calculateTotalExamTime() - totalTimeLeft,
       }
-    })
 
-    const percentage = Math.round((score / (mockExam.questions.length * 10)) * 100)
+      const response = await api.post('/results', submissionData)
 
-    // Determine rating based on percentage
-    let rating = "Needs Improvement"
-    if (percentage >= 90) rating = "Excellent"
-    else if (percentage >= 75) rating = "Good"
-    else if (percentage >= 60) rating = "Satisfactory"
+      if (response.data) {
+        // Update exam attempts count
+        if (exam.attempts) {
+          await api.put(`/exams/${params.id}/attempts`, {
+            attempts: {
+              current: (exam.attempts.current || 0) + 1,
+              max: exam.attempts.max
+            }
+          })
+        }
 
-    // In a real app, you would send this to your backend
-    console.log("Exam submitted:", {
-      examId: params.id,
-      answers,
-      score,
-      percentage,
-      rating,
-      timeSpent: calculateTotalExamTime() - totalTimeLeft,
-      attemptNumber: 1,
-      maxAttempts: 5,
-    })
-
-    // Redirect to results page
-    setTimeout(() => {
-      router.push(
-        `/result/${params.id}?score=${percentage}&correct=${score / 10}&total=${mockExam.questions.length}&rating=${rating}`,
-      )
-    }, 1000)
+        // Redirect to results page
+        setTimeout(() => {
+          router.push(`/result/${response.data._id}`)
+        }, 1000)
+      } else {
+        throw new Error("Failed to submit exam")
+      }
+    } catch (error) {
+      console.error("Error submitting exam:", error)
+      toast({
+        title: "Error",
+        description: "Failed to submit exam. Please try again.",
+        variant: "destructive"
+      })
+      setIsSubmitting(false)
+    }
   }
 
   const startExam = () => {
     setExamStarted(true)
     setShowInstructions(false)
+
+    // Start the total exam timer
+    setTotalTimeLeft(calculateTotalExamTime())
   }
 
-  const question = mockExam.questions[currentQuestion]
-  const progress = ((currentQuestion + 1) / mockExam.questions.length) * 100
+  // Get current question or use a placeholder if exam is not loaded
+  const question = exam && exam.questions && exam.questions[currentQuestion]
+    ? exam.questions[currentQuestion]
+    : { text: "Loading question...", type: "multiple-choice", options: [], difficulty: "Medium" }
+
+  // Calculate progress
+  const progress = exam && exam.questions
+    ? ((currentQuestion + 1) / exam.questions.length) * 100
+    : 0
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
@@ -427,15 +414,34 @@ export default function ExamPage({ params }: { params: { id: string } }) {
       </header>
 
       <main className="container mx-auto px-4 py-8">
-        {showInstructions ? (
+        {loading ? (
+          <div className="flex justify-center items-center h-64">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-2">Loading exam data...</span>
+          </div>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+            <p className="flex items-center">
+              <AlertTriangle className="h-5 w-5 mr-2" />
+              {error}
+            </p>
+            <Button
+              variant="outline"
+              className="mt-2"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </Button>
+          </div>
+        ) : showInstructions ? (
           <div className="max-w-4xl mx-auto">
             <Card className="mb-4 border-0 shadow-lg overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white">
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle className="text-2xl">{mockExam.title}</CardTitle>
+                    <CardTitle className="text-2xl">{exam?.title || "Exam"}</CardTitle>
                     <CardDescription className="text-indigo-200">
-                      {mockExam.subject} | {mockExam.class}
+                      {exam?.subject || "Subject"} | Class {exam?.class || ""}
                     </CardDescription>
                   </div>
                 </div>
@@ -446,7 +452,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     <h3 className="text-lg font-medium mb-2">Exam Instructions</h3>
                     <ul className="list-disc pl-5 space-y-2">
                       <li>
-                        This exam contains <strong>{mockExam.totalQuestions} questions</strong> of various types (MCQ,
+                        This exam contains <strong>{exam?.questions?.length || 0} questions</strong> of various types (Multiple Choice,
                         Fill-in-the-blanks, True/False).
                       </li>
                       <li>
@@ -454,7 +460,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                         sum of all question timers.
                       </li>
                       <li>
-                        Each question is worth <strong>10 points</strong>, for a total of {mockExam.totalQuestions * 10}{" "}
+                        Each question is worth <strong>10 points</strong>, for a total of {(exam?.questions?.length || 0) * 10}{" "}
                         points.
                       </li>
                       <li>You cannot go back to previous questions once answered.</li>
@@ -462,7 +468,8 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       <li>You can see your progress in the navigation bar at the bottom.</li>
                       <li>Questions will be randomized to prevent cheating.</li>
                       <li>
-                        <strong>You can attempt this exam up to 5 times.</strong> This is attempt 1 of 5.
+                        <strong>You can attempt this exam up to {exam?.attempts?.max || 1} times.</strong>
+                        This is attempt {(exam?.attempts?.current || 0) + 1} of {exam?.attempts?.max || 1}.
                       </li>
                       <li>Your highest score from all attempts will be considered for your final grade.</li>
                     </ul>
@@ -473,11 +480,11 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-indigo-600">Subject</p>
-                        <p className="font-medium">{mockExam.subject}</p>
+                        <p className="font-medium">{exam?.subject || "N/A"}</p>
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Class</p>
-                        <p className="font-medium">{mockExam.class}</p>
+                        <p className="font-medium">{exam?.class || "N/A"}</p>
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Total Time</p>
@@ -485,11 +492,11 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Total Questions</p>
-                        <p className="font-medium">{mockExam.totalQuestions}</p>
+                        <p className="font-medium">{exam?.questions?.length || 0}</p>
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Maximum Score</p>
-                        <p className="font-medium">{mockExam.totalQuestions * 10} points</p>
+                        <p className="font-medium">{(exam?.questions?.length || 0) * 10} points</p>
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Passing Score</p>
@@ -531,14 +538,14 @@ export default function ExamPage({ params }: { params: { id: string } }) {
               <CardHeader className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white">
                 <div className="flex justify-between items-center">
                   <div>
-                    <CardTitle>{mockExam.title}</CardTitle>
+                    <CardTitle>{exam?.title || "Exam"}</CardTitle>
                     <CardDescription className="text-indigo-200">
-                      {mockExam.subject} | {mockExam.class} | Question {currentQuestion + 1} of{" "}
-                      {mockExam.questions.length}
+                      {exam?.subject || "Subject"} | Class {exam?.class || ""} | Question {currentQuestion + 1} of{" "}
+                      {exam?.questions?.length || 0}
                     </CardDescription>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge className="bg-white text-indigo-800 px-3 py-1">{question.points} points</Badge>
+                    <Badge className="bg-white text-indigo-800 px-3 py-1">10 points</Badge>
                     <div
                       className={`px-3 py-1 rounded-md text-sm font-medium ${
                         timeLeft < 5 ? "bg-red-500" : timeLeft < 10 ? "bg-yellow-500" : "bg-green-500"
@@ -548,7 +555,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     </div>
                   </div>
                 </div>
-                <Progress value={progress} className="h-2 mt-4" indicatorClassName="bg-indigo-400" />
+                <Progress value={progress} className="h-2 mt-4" />
               </CardHeader>
               <CardContent className="p-6">
                 <div className="space-y-6">
@@ -651,7 +658,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                 </Button>
 
                 <div className="flex gap-2 ml-auto">
-                  {currentQuestion < mockExam.questions.length - 1 && (
+                  {exam && exam.questions && currentQuestion < exam.questions.length - 1 && (
                     <Button
                       variant="outline"
                       onClick={() => {
@@ -662,7 +669,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       Skip
                     </Button>
                   )}
-                  {currentQuestion === mockExam.questions.length - 1 ? (
+                  {exam && exam.questions && currentQuestion === exam.questions.length - 1 ? (
                     <Button
                       onClick={handleSubmit}
                       disabled={isSubmitting}
@@ -699,7 +706,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                 </div>
               </div>
               <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
-                {mockExam.questions.map((_, index) => (
+                {exam && exam.questions ? exam.questions.map((_, index) => (
                   <Button
                     key={index}
                     variant={answers[index] ? "default" : "outline"}
@@ -732,7 +739,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       index + 1
                     )}
                   </Button>
-                ))}
+                )) : null}
               </div>
             </div>
 
@@ -742,7 +749,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                 <div>
                   <h4 className="font-medium text-amber-800">Unanswered Questions</h4>
                   <p className="text-amber-700 text-sm">
-                    You have {mockExam.questions.length - Object.keys(answers).length} unanswered questions. Are you
+                    You have {exam && exam.questions ? exam.questions.length - Object.keys(answers).length : 0} unanswered questions. Are you
                     sure you want to submit?
                   </p>
                   <div className="flex gap-2 mt-2">

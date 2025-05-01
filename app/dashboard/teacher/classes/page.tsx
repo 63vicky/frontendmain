@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { api } from "@/lib/api"
+import { api, getSubjects, studentApi } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -140,11 +140,8 @@ export default function TeacherClassesPage() {
   const [isAddClassDialogOpen, setIsAddClassDialogOpen] = useState(false)
   const [isEditClassDialogOpen, setIsEditClassDialogOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [isEditStudentDialogOpen, setIsEditStudentDialogOpen] = useState(false)
-  const [isAddNewStudentDialogOpen, setIsAddNewStudentDialogOpen] = useState(false)
   const [isAddMaterialDialogOpen, setIsAddMaterialDialogOpen] = useState(false)
   const [selectedClass, setSelectedClass] = useState<Class | null>(null)
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [selectedMaterial, setSelectedMaterial] = useState<Material | null>(null)
   const [classes, setClasses] = useState<Class[]>([])
   const [students, setStudents] = useState<Student[]>([])
@@ -165,36 +162,50 @@ export default function TeacherClassesPage() {
   const [formErrors, setFormErrors] = useState<FormErrors>({})
   const [classToDelete, setClassToDelete] = useState<Class | null>(null)
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
   useEffect(() => {
     fetchData()
-  }, [])
+  }, []);
 
+  // Add this useEffect to initialize selected students when dialog opens
+  useEffect(() => {
+    if (isAddStudentDialogOpen && selectedClass) {
+      // Pre-select students who are already in this class
+      const studentsInClass = students
+        .filter(student => student.class === selectedClass._id)
+        .map(student => student._id);
+
+      setSelectedStudents(studentsInClass);
+    }
+  }, [isAddStudentDialogOpen, selectedClass, students]);
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [classesRes, studentsRes, subjectsRes, materialsRes] = await Promise.all([
-        api.get<ApiResponse<Class[]>>('/classes'),
-        api.get<ApiResponse<Student[]>>('/users/students'),
-        api.get<ApiResponse<Subject[]>>('/subjects'),
-        api.get<ApiResponse<Material[]>>('/materials')
+      const [classesRes, subjectsRes, materialsRes] = await Promise.all([
+        api.classes.getAll(),
+        getSubjects(),
+        api.materials.getAll(),
       ])
-      
-      if (classesRes.data.data && Array.isArray(classesRes.data.data)) {
-        setClasses(classesRes.data.data as Class[])
-      }
-      
-      if (studentsRes.data && Array.isArray(studentsRes.data)) {
-        setStudents(studentsRes.data as Student[])
+
+      // Handle classes
+      if (classesRes && typeof classesRes === 'object' && 'data' in classesRes && Array.isArray(classesRes.data)) {
+        const teacherClasses = classesRes.data as Class[]
+        setClasses(teacherClasses)
+
+        // Get all students for the add student dialog
+        const studentsRes = await studentApi.getAllStudents()
+        if (Array.isArray(studentsRes)) {
+          setStudents(studentsRes as Student[])
+        }
       }
 
-      if (subjectsRes.data.data && Array.isArray(subjectsRes.data.data)) {
-        setSubjects(subjectsRes.data.data as Subject[])
+      // Handle subjects
+      if (subjectsRes && typeof subjectsRes === 'object' && 'data' in subjectsRes && Array.isArray(subjectsRes.data)) {
+        setSubjects(subjectsRes.data as Subject[])
       }
 
-      if (materialsRes.data.data && Array.isArray(materialsRes.data.data)) {
-        setMaterials(materialsRes.data.data as Material[])
+      // Handle materials
+      if (materialsRes && typeof materialsRes === 'object' && 'data' in materialsRes && Array.isArray(materialsRes.data)) {
+        setMaterials(materialsRes.data as Material[])
       }
     } catch (error) {
       toast({
@@ -238,8 +249,8 @@ export default function TeacherClassesPage() {
       setActionLoading(true);
       const endpoint = selectedClass ? `/classes/${selectedClass._id}` : '/classes';
       const method = selectedClass ? 'PUT' : 'POST';
-      
-      const response = method === 'POST' 
+
+      const response = method === 'POST'
         ? await api.post<ApiResponse<ClassResponse>>(endpoint, formData)
         : await api.put<ApiResponse<ClassResponse>>(endpoint, formData);
 
@@ -279,7 +290,8 @@ export default function TeacherClassesPage() {
   const handleDeleteClass = async (classId: string) => {
     try {
       setActionLoading(true)
-      await api.delete(`/classes/${classId}`)
+      await api.classes.delete(classId)
+      setSelectedClass(null);
       toast({
         title: "Success",
         description: "Class deleted successfully",
@@ -289,7 +301,7 @@ export default function TeacherClassesPage() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.response?.data?.message || "Failed to delete class",
+        description: error instanceof Error ? error.message : error || "Failed to delete class",
         variant: "destructive",
       })
     } finally {
@@ -298,64 +310,6 @@ export default function TeacherClassesPage() {
       setClassToDelete(null)
     }
   }
-
-  const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedClass) return;
-
-    const formData = new FormData(e.currentTarget);
-    const studentIds = formData.getAll('students') as string[];
-
-    if (studentIds.length === 0) {
-      toast({
-        title: "Error",
-        description: "Please select at least one student",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      setActionLoading(true);
-      const response = await api.post<ApiResponse<{ modifiedCount: number }>>(
-        `/classes/${selectedClass._id}/students`,
-        { studentIds },
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-          }
-        }
-      );
-
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-
-      // Update the class's student count
-      const updatedClass = classes.find(c => c._id === selectedClass._id);
-      if (updatedClass) {
-        updatedClass.students += response.data.data.modifiedCount;
-        setClasses([...classes]);
-      }
-
-      toast({
-        title: "Success",
-        description: `Added ${response.data.data.modifiedCount} students to class`,
-        variant: "default"
-      });
-      setIsAddStudentDialogOpen(false);
-      setSelectedStudents([]);
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add students",
-        variant: "destructive"
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const handleEdit = (classData: Class) => {
     setSelectedClass(classData);
@@ -381,165 +335,153 @@ export default function TeacherClassesPage() {
   )
 
   const handleStudentSelect = (studentId: string) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId) 
+    // Find the student
+    const student = students.find(s => s._id === studentId);
+
+    // If student is in another class, don't allow selection
+    if (student?.class && student.class !== selectedClass?._id) {
+      toast({
+        title: "Cannot select student",
+        description: "This student is already assigned to another class",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Toggle selection
+    setSelectedStudents(prev =>
+      prev.includes(studentId)
         ? prev.filter(id => id !== studentId)
         : [...prev, studentId]
     );
   };
 
   const handleSelectAll = (checked: boolean) => {
-    setSelectedStudents(checked ? students.map(s => s._id) : []);
+    if (checked) {
+      // Only select students who are not in other classes
+      const availableStudents = students.filter(s =>
+        !s.class || s.class === selectedClass?._id
+      ).map(s => s._id);
+      setSelectedStudents(availableStudents);
+    } else {
+      setSelectedStudents([]);
+    }
   };
 
+  const handleAddStudent = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!selectedClass) return;
+
+    // Get selected student IDs from checkboxes
+    const selectedIds = selectedStudents;
+
+    // Get current students in the class
+    const currentStudents = students.filter(s => s.class === selectedClass._id).map(s => s._id);
+
+    // Students to add (selected but not in class and not in any other class)
+    const studentsToAdd = selectedIds.filter(id => {
+      const student = students.find(s => s._id === id);
+      // Only add if student is not already in this class and either has no class or is in this class
+      return !currentStudents.includes(id) && (!student?.class || student.class === selectedClass._id);
+    });
+
+    // Students to remove (in class but not selected)
+    const studentsToRemove = currentStudents.filter(id => !selectedIds.includes(id));
+
+    try {
+      setActionLoading(true);
+
+      // Add students if there are any to add
+      if (studentsToAdd.length > 0) {
+        // Use fetch directly to have more control over the request
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${selectedClass._id}/students`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          credentials: 'include',
+          body: JSON.stringify({ studentIds: studentsToAdd })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to add students');
+        }
+      }
+
+      // Remove students if there are any to remove
+      if (studentsToRemove.length > 0) {
+        // Use fetch directly to have more control over the request
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${selectedClass._id}/remove-students`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          credentials: 'include',
+          body: JSON.stringify({ studentIds: studentsToRemove })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to remove students');
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Class roster updated successfully",
+        variant: "default"
+      });
+
+      setIsAddStudentDialogOpen(false);
+      setSelectedStudents([]);
+      fetchData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update class roster",
+        variant: "destructive"
+      });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // For the students tab, only show students who are in the teacher's classes
+  const teacherClassIds = classes.map(cls => cls._id);
   const filteredStudents = students
-    .filter(student => 
+    .filter(student =>
       student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       student.rollNo.toLowerCase().includes(searchTerm.toLowerCase())
     )
-    .filter(student => 
-      selectedClassFilter === "all" || student.class === selectedClassFilter
+    .filter(student =>
+      (selectedClassFilter === "all" || student.class === selectedClassFilter) &&
+      // Only show students who are in one of the teacher's classes
+      student.class && teacherClassIds.includes(student.class)
     );
-
-  const handleEditStudent = (student: Student) => {
-    setSelectedStudent(student);
-    setIsEditStudentDialogOpen(true);
+const handleEditDialogClose = () => {
+    setIsEditClassDialogOpen(false);
+    setSelectedClass(null);
+    setFormData({
+      name: "",
+      section: "",
+      subject: "",
+      schedule: "",
+      status: "Active"
+    });
+    setFormErrors({});
   };
-
-  const handleUpdateStudent = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!selectedStudent) return;
-
-    const formData = new FormData(e.currentTarget);
-    const studentData = {
-      name: formData.get('name') as string,
-      rollNo: formData.get('rollNo') as string,
-      class: formData.get('class') as string,
-      performance: formData.get('performance') as string,
-      attendance: parseInt(formData.get('attendance') as string) || 0
-    };
-
-    try {
-      setActionLoading(true);
-      const response = await api.put<ApiResponse<StudentResponse>>(
-        `/users/${selectedStudent._id}`,
-        studentData
-      );
-
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-
-      // Update class student counts if class changed
-      if (selectedStudent.class !== studentData.class) {
-        // Decrease count from old class
-        if (selectedStudent.class) {
-          const oldClass = classes.find(c => c._id === selectedStudent.class);
-          if (oldClass) {
-            oldClass.students = Math.max(0, oldClass.students - 1);
-          }
-        }
-        // Increase count in new class
-        if (studentData.class && studentData.class !== "No Class") {
-          const newClass = classes.find(c => c._id === studentData.class);
-          if (newClass) {
-            newClass.students += 1;
-          }
-        }
-        setClasses([...classes]);
-      }
-
-      toast({
-        title: "Success",
-        description: "Student updated successfully",
-        variant: "default"
-      });
-      setIsEditStudentDialogOpen(false);
-      setSelectedStudent(null);
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update student",
-        variant: "destructive"
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleDeleteStudent = async (studentId: string) => {
-    try {
-      setActionLoading(true);
-      await api.delete(`/users/${studentId}`);
-      toast({
-        title: "Success",
-        description: "Student deleted successfully",
-        variant: "default"
-      });
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.response?.data?.message || "Failed to delete student",
-        variant: "destructive",
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleAddNewStudent = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    
-    const formData = new FormData(e.currentTarget);
-    const studentData = {
-      name: formData.get('name') as string,
-      email: formData.get('email') as string,
-      rollNo: formData.get('rollNo') as string,
-      class: formData.get('class') as string,
-      role: 'student',
-      status: 'Active'
-    };
-
-    try {
-      setActionLoading(true);
-      const response = await api.post<ApiResponse<StudentResponse>>(
-        '/users',
-        studentData
-      );
-
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-
-      toast({
-        title: "Success",
-        description: "Student added successfully",
-        variant: "default"
-      });
-      setIsAddNewStudentDialogOpen(false);
-      fetchData();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to add student",
-        variant: "destructive"
-      });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
   const handleAddMaterial = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    
+
     const formData = new FormData(e.currentTarget);
     const title = formData.get('title') as string;
     const description = formData.get('description') as string;
     const classId = formData.get('class') as string;
     const file = formData.get('file') as File;
-    
+
     if (!file || file.size === 0) {
       toast({
         title: "Error",
@@ -592,7 +534,7 @@ export default function TeacherClassesPage() {
   const handleDeleteMaterial = async (materialId: string) => {
     try {
       setActionLoading(true);
-      await api.delete(`/materials/${materialId}`);
+      await api.materials.delete(materialId);
       toast({
         title: "Success",
         description: "Material deleted successfully",
@@ -619,11 +561,11 @@ export default function TeacherClassesPage() {
   };
 
   const filteredMaterials = materials
-    .filter(material => 
-      material.title.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
-      material.description.toLowerCase().includes(materialSearchTerm.toLowerCase())
+    .filter(material =>
+      material.title?.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
+      material.description?.toLowerCase().includes(materialSearchTerm.toLowerCase())
     )
-    .filter(material => 
+    .filter(material =>
       selectedMaterialClassFilter === "all" || material.class === selectedMaterialClassFilter
     );
 
@@ -809,7 +751,7 @@ export default function TeacherClassesPage() {
                         disabled={actionLoading}
                       >
                         <UserPlus className="h-4 w-4 mr-1" />
-                        Add Students
+                        Manage Students
                       </Button>
                       <Button
                         variant="outline"
@@ -841,16 +783,16 @@ export default function TeacherClassesPage() {
             <div className="flex flex-col md:flex-row justify-between gap-4">
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  type="search" 
-                  placeholder="Search students..." 
+                <Input
+                  type="search"
+                  placeholder="Search students..."
                   className="pl-8"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
               <div className="flex gap-2">
-                <Select 
+                <Select
                   defaultValue="all"
                   value={selectedClassFilter}
                   onValueChange={(value) => {
@@ -869,16 +811,6 @@ export default function TeacherClassesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button 
-                  onClick={() => {
-                    setSelectedClass(null);
-                    setIsAddNewStudentDialogOpen(true);
-                  }}
-                  disabled={actionLoading}
-                >
-                  <Plus className="h-4 w-4 mr-1" />
-                  Add Student
-                </Button>
               </div>
             </div>
 
@@ -892,7 +824,6 @@ export default function TeacherClassesPage() {
                       <TableHead>Class</TableHead>
                       <TableHead>Attendance</TableHead>
                       <TableHead>Performance</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -917,33 +848,6 @@ export default function TeacherClassesPage() {
                             {student.performance || 'Not Available'}
                           </span>
                         </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="icon"
-                              onClick={() => {
-                                handleEditStudent(student);
-                              }}
-                              disabled={actionLoading}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="text-red-500 hover:text-red-600"
-                              onClick={() => {
-                                if (window.confirm(`Are you sure you want to delete ${student.name}?`)) {
-                                  handleDeleteStudent(student._id);
-                                }
-                              }}
-                              disabled={actionLoading}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -956,16 +860,16 @@ export default function TeacherClassesPage() {
             <div className="flex flex-col md:flex-row justify-between gap-4">
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input 
-                  type="search" 
-                  placeholder="Search materials..." 
+                <Input
+                  type="search"
+                  placeholder="Search materials..."
                   className="pl-8"
                   value={materialSearchTerm}
                   onChange={(e) => setMaterialSearchTerm(e.target.value)}
                 />
               </div>
               <div className="flex gap-2">
-                <Select 
+                <Select
                   defaultValue="all"
                   value={selectedMaterialClassFilter}
                   onValueChange={(value) => {
@@ -984,7 +888,7 @@ export default function TeacherClassesPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button 
+                <Button
                   onClick={() => setIsAddMaterialDialogOpen(true)}
                   disabled={actionLoading}
                 >
@@ -1051,12 +955,12 @@ export default function TeacherClassesPage() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {selectedClass ? `Add Students to ${selectedClass.name}` : 'Add New Student'}
+              {selectedClass ? `Manage Students in ${selectedClass.name}` : 'Manage Students'}
             </DialogTitle>
             <DialogDescription>
-              {selectedClass 
-                ? 'Select students to add to this class.'
-                : 'Enter student details to add them to the system.'}
+              {selectedClass
+                ? 'Select students to add to this class. Uncheck students to remove them from the class.'
+                : 'Select students to add or remove from this class.'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleAddStudent}>
@@ -1065,40 +969,59 @@ export default function TeacherClassesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         className="h-4 w-4 rounded"
-                        checked={selectedStudents.length === students.length}
+                        checked={selectedStudents.length > 0 &&
+                          selectedStudents.length === students.filter(s =>
+                            !s.class || s.class === selectedClass?._id
+                          ).length}
                         onChange={(e) => handleSelectAll(e.target.checked)}
                       />
                     </TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Roll No.</TableHead>
+                    <TableHead>Current Class</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {students.map((student) => (
-                    <TableRow key={student._id}>
-                      <TableCell>
-                        <input 
-                          type="checkbox" 
-                          className="h-4 w-4 rounded"
-                          checked={selectedStudents.includes(student._id)}
-                          onChange={() => handleStudentSelect(student._id)}
-                          name="students"
-                          value={student._id}
-                          disabled={student.class === selectedClass?._id}
-                        />
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {student.name}
-                        {student.class === selectedClass?._id && (
-                          <span className="ml-2 text-xs text-muted-foreground">(Already in class)</span>
-                        )}
-                      </TableCell>
-                      <TableCell>{student.rollNo}</TableCell>
-                    </TableRow>
-                  ))}
+                  {students.map((student) => {
+                    const isInClass = student.class === selectedClass?._id;
+                    const isInOtherClass = student.class && student.class !== selectedClass?._id;
+                    return (
+                      <TableRow key={student._id} className={isInOtherClass ? "opacity-50" : ""}>
+                        <TableCell>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded"
+                            checked={selectedStudents.includes(student._id)}
+                            onChange={() => handleStudentSelect(student._id)}
+                            name="students"
+                            value={student._id}
+                            disabled={isInOtherClass ? true : false}
+                            title={isInOtherClass ? "Student is already in another class" : undefined}
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {student.name}
+                          {isInClass && (
+                            <span className="ml-2 text-xs text-muted-foreground">(Already in class)</span>
+                          )}
+                          {isInOtherClass && (
+                            <span className="ml-2 text-xs text-red-500">(In another class)</span>
+                          )}
+                        </TableCell>
+                        <TableCell>{student.rollNo}</TableCell>
+                        <TableCell>
+                          {isInOtherClass && (
+                            <span className="text-xs text-muted-foreground">
+                              {classes.find(c => c._id === student.class)?.name || 'Unknown Class'}
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -1107,10 +1030,10 @@ export default function TeacherClassesPage() {
                 {actionLoading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
+                    Saving...
                   </>
                 ) : (
-                  "Add Selected Students"
+                  "Save Changes"
                 )}
               </Button>
             </DialogFooter>
@@ -1119,7 +1042,7 @@ export default function TeacherClassesPage() {
       </Dialog>
 
       {/* Edit Class Dialog */}
-      <Dialog open={isEditClassDialogOpen} onOpenChange={setIsEditClassDialogOpen}>
+      <Dialog open={isEditClassDialogOpen} onOpenChange={handleEditDialogClose}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Edit Class</DialogTitle>
@@ -1253,170 +1176,7 @@ export default function TeacherClassesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Student Dialog */}
-      <Dialog open={isEditStudentDialogOpen} onOpenChange={setIsEditStudentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Student</DialogTitle>
-            <DialogDescription>Update student details.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleUpdateStudent}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="student-name">Name</Label>
-                <Input
-                  id="student-name"
-                  name="name"
-                  defaultValue={selectedStudent?.name}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="student-rollno">Roll No.</Label>
-                <Input
-                  id="student-rollno"
-                  name="rollNo"
-                  defaultValue={selectedStudent?.rollNo}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="student-class">Class</Label>
-                <Select
-                  name="class"
-                  defaultValue={selectedStudent?.class || ""}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="No Class">No Class</SelectItem>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="student-attendance">Attendance (%)</Label>
-                <Input
-                  id="student-attendance"
-                  name="attendance"
-                  type="number"
-                  min="0"
-                  max="100"
-                  defaultValue={selectedStudent?.attendance || 0}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="student-performance">Performance</Label>
-                <Select
-                  name="performance"
-                  defaultValue={selectedStudent?.performance || ""}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select performance" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Not Available">Not Available</SelectItem>
-                    <SelectItem value="Excellent">Excellent</SelectItem>
-                    <SelectItem value="Good">Good</SelectItem>
-                    <SelectItem value="Average">Average</SelectItem>
-                    <SelectItem value="Poor">Poor</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={actionLoading}>
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  "Save Changes"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
-      {/* Add New Student Dialog */}
-      <Dialog open={isAddNewStudentDialogOpen} onOpenChange={setIsAddNewStudentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add New Student</DialogTitle>
-            <DialogDescription>Enter student details to add them to the system.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAddNewStudent}>
-            <div className="grid gap-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="new-student-name">Name</Label>
-                <Input
-                  id="new-student-name"
-                  name="name"
-                  placeholder="Student name"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-student-email">Email</Label>
-                <Input
-                  id="new-student-email"
-                  name="email"
-                  type="email"
-                  placeholder="student@example.com"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-student-rollno">Roll No.</Label>
-                <Input
-                  id="new-student-rollno"
-                  name="rollNo"
-                  placeholder="Roll number"
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="new-student-class">Class</Label>
-                <Select
-                  name="class"
-                  defaultValue=""
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="No Class">No Class</SelectItem>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={actionLoading}>
-                {actionLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  "Add Student"
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Add Material Dialog */}
       <Dialog open={isAddMaterialDialogOpen} onOpenChange={setIsAddMaterialDialogOpen}>
@@ -1491,3 +1251,9 @@ export default function TeacherClassesPage() {
     </DashboardLayout>
   )
 }
+
+
+
+
+
+

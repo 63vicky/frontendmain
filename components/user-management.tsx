@@ -137,14 +137,49 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
           classes
         })
       } else {
-        await studentApi.createStudent({
+        // Create the student with or without a class
+        const response = await studentApi.createStudent({
           name: formData.name,
           email: formData.email,
           password: formData.password,
-          class: formData.class,
+          class: "", // Empty string instead of null to match expected type
           rollNo: formData.rollNo
         })
+
+        // If student should be assigned to a class, update the class student count
+        if (formData.class) {
+          try {
+            // Get the student ID from the response
+            const studentId = response.data?._id || response._id
+
+            if (studentId) {
+              // First update the student with the class
+              await studentApi.updateStudent(studentId, {
+                class: formData.class
+              });
+
+              // Then update the class student count
+              const addResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${formData.class}/students`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({ studentIds: [studentId] })
+              });
+
+              if (!addResponse.ok) {
+                const errorData = await addResponse.json();
+                console.error("Error adding student to class:", errorData);
+              }
+            }
+          } catch (error) {
+            console.error("Error updating class student count:", error);
+          }
+        }
       }
+
       toast({
         title: "Success",
         description: `${userType === 'teacher' ? 'Teacher' : 'Student'} added successfully`
@@ -164,6 +199,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
       } else {
         loadStudents()
       }
+      // Reload classes to update student counts
+      loadClasses()
     } catch (error) {
       toast({
         title: "Error",
@@ -194,14 +231,78 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         })
       } else {
         const student = editData as Student
+
+        // Get the original student data to check if class has changed
+        const originalStudent = students.find(s => s._id === student._id)
+        const previousClassId = originalStudent?.class
+        const newClassId = student.class
+
+        // Check if class has changed
+        const classChanged = previousClassId !== newClassId
+
+        // If class has changed, handle class updates first
+        if (classChanged) {
+          // If student was in a class before, remove them from that class first
+          if (previousClassId) {
+            try {
+              // First, set the student's class to empty string in the database
+              await studentApi.updateStudent(student._id, {
+                class: ""
+              });
+
+              // Then, update the previous class's student count
+              const removeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${previousClassId}/remove-students`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${localStorage.getItem('token')}`
+                },
+                credentials: 'include',
+                body: JSON.stringify({ studentIds: [student._id] })
+              });
+
+              if (!removeResponse.ok) {
+                const errorData = await removeResponse.json();
+                console.error("Error removing student from previous class:", errorData);
+              }
+            } catch (error) {
+              console.error("Error removing student from previous class:", error);
+            }
+          }
+        }
+
+        // Now update the student with all the new data
         await studentApi.updateStudent(student._id, {
           name: student.name,
           email: student.email,
-          class: student.class,
+          class: newClassId,
           rollNo: student.rollNo,
           status: student.status
-        })
+        });
+
+        // If class has changed and there's a new class, add the student to it
+        if (classChanged && newClassId) {
+          try {
+            const addResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${newClassId}/students`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              credentials: 'include',
+              body: JSON.stringify({ studentIds: [student._id] })
+            });
+
+            if (!addResponse.ok) {
+              const errorData = await addResponse.json();
+              console.error("Error adding student to new class:", errorData);
+            }
+          } catch (error) {
+            console.error("Error adding student to new class:", error);
+          }
+        }
       }
+
       toast({
         title: "Success",
         description: `${userType === 'teacher' ? 'Teacher' : 'Student'} updated successfully`
@@ -213,6 +314,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
       } else {
         loadStudents()
       }
+      // Reload classes to update student counts
+      loadClasses()
     } catch (error) {
       toast({
         title: "Error",
@@ -228,8 +331,42 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
       if (userType === 'teacher') {
         await teacherApi.deleteTeacher(id)
       } else {
+        // Find the student to get their class before deletion
+        const student = students.find(s => s._id === id)
+        const classId = student?.class
+
+        // If student is in a class, first remove them from the class
+        if (classId) {
+          try {
+            // First, set the student's class to empty string in the database
+            await studentApi.updateStudent(id, {
+              class: ""
+            });
+
+            // Then, update the class's student count
+            const removeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${classId}/remove-students`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              },
+              credentials: 'include',
+              body: JSON.stringify({ studentIds: [id] })
+            });
+
+            if (!removeResponse.ok) {
+              const errorData = await removeResponse.json();
+              console.error("Error removing student from class:", errorData);
+            }
+          } catch (error) {
+            console.error("Error updating class student count:", error);
+          }
+        }
+
+        // Now delete the student
         await studentApi.deleteStudent(id)
       }
+
       toast({
         title: "Success",
         description: `${userType === 'teacher' ? 'Teacher' : 'Student'} deleted successfully`
@@ -239,6 +376,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
       } else {
         loadStudents()
       }
+      // Reload classes to update student counts
+      loadClasses()
     } catch (error) {
       toast({
         title: "Error",
@@ -278,7 +417,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
   }
 
   // Filter users based on search query
-  const filteredUsers = userType === 'teacher' 
+  const filteredUsers = userType === 'teacher'
     ? teachers.filter(
         (user) =>
           user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -386,17 +525,17 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                   </Button>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="sm"
                     onClick={() => handleEdit(user)}
                   >
                     Edit
                   </Button>
                   {!teacherView && (
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="text-red-500"
                       onClick={() => handleDelete(user._id)}
                     >
@@ -424,8 +563,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 <Label htmlFor="name" className="text-right">
                   Name
                 </Label>
-                <Input 
-                  id="name" 
+                <Input
+                  id="name"
                   className="col-span-3"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
@@ -436,9 +575,9 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 <Label htmlFor="email" className="text-right">
                   Email
                 </Label>
-                <Input 
-                  id="email" 
-                  type="email" 
+                <Input
+                  id="email"
+                  type="email"
                   className="col-span-3"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -465,8 +604,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                     <Label htmlFor="subject" className="text-right">
                       Subject
                     </Label>
-                    <Input 
-                      id="subject" 
+                    <Input
+                      id="subject"
                       className="col-span-3"
                       value={formData.subject}
                       onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
@@ -477,9 +616,9 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                     <Label htmlFor="classes" className="text-right">
                       Classes
                     </Label>
-                    <Input 
-                      id="classes" 
-                      className="col-span-3" 
+                    <Input
+                      id="classes"
+                      className="col-span-3"
                       placeholder="e.g., 8A, 9B, 10C"
                       value={formData.classes}
                       onChange={(e) => setFormData({ ...formData, classes: e.target.value })}
@@ -521,8 +660,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                     <Label htmlFor="rollNo" className="text-right">
                       Roll No.
                     </Label>
-                    <Input 
-                      id="rollNo" 
+                    <Input
+                      id="rollNo"
                       className="col-span-3"
                       value={formData.rollNo}
                       onChange={(e) => setFormData({ ...formData, rollNo: e.target.value })}
@@ -554,8 +693,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                   <Label htmlFor="edit-name" className="text-right">
                     Name
                   </Label>
-                  <Input 
-                    id="edit-name" 
+                  <Input
+                    id="edit-name"
                     className="col-span-3"
                     value={editData.name}
                     onChange={(e) => setEditData({ ...editData, name: e.target.value })}
@@ -566,9 +705,9 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                   <Label htmlFor="edit-email" className="text-right">
                     Email
                   </Label>
-                  <Input 
-                    id="edit-email" 
-                    type="email" 
+                  <Input
+                    id="edit-email"
+                    type="email"
                     className="col-span-3"
                     value={editData.email}
                     onChange={(e) => setEditData({ ...editData, email: e.target.value })}
@@ -581,8 +720,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       <Label htmlFor="edit-subject" className="text-right">
                         Subject
                       </Label>
-                      <Input 
-                        id="edit-subject" 
+                      <Input
+                        id="edit-subject"
                         className="col-span-3"
                         value={(editData as Teacher).subject}
                         onChange={(e) => setEditData({ ...editData, subject: e.target.value })}
@@ -593,9 +732,9 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       <Label htmlFor="edit-classes" className="text-right">
                         Classes
                       </Label>
-                      <Input 
-                        id="edit-classes" 
-                        className="col-span-3" 
+                      <Input
+                        id="edit-classes"
+                        className="col-span-3"
                         placeholder="e.g., 8A, 9B, 10C"
                         value={(editData as Teacher).classes.join(', ')}
                         onChange={(e) => setEditData({ ...editData, classes: e.target.value.split(',').map(c => c.trim()) })}
@@ -639,8 +778,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       <Label htmlFor="edit-rollNo" className="text-right">
                         Roll No.
                       </Label>
-                      <Input 
-                        id="edit-rollNo" 
+                      <Input
+                        id="edit-rollNo"
                         className="col-span-3"
                         value={(editData as Student).rollNo}
                         onChange={(e) => setEditData({ ...editData, rollNo: e.target.value })}

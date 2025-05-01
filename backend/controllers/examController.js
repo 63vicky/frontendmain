@@ -65,7 +65,7 @@ const getExamById = async (req, res) => {
   try {
     const { id } = req.params;
     const exam = exams.find(e => e.id === parseInt(id));
-    
+
     if (!exam) {
       return res.status(404).json({ message: 'Exam not found' });
     }
@@ -80,7 +80,7 @@ const getExamById = async (req, res) => {
 const createExam = async (req, res) => {
   try {
     const { title, subject, class: className, chapter, duration, startDate, endDate, attempts } = req.body;
-    
+
     // Validate exam data
     const validationError = validateExam(req.body);
     if (validationError) {
@@ -168,7 +168,7 @@ const getExam = async (req, res) => {
 const updateExam = async (req, res) => {
   try {
     const { title, subject, class: className, chapter, duration, startDate, endDate, attempts } = req.body;
-    
+
     // Validate exam data
     const validationError = validateExam(req.body);
     if (validationError) {
@@ -255,7 +255,7 @@ const getExamResults = async (req, res) => {
   try {
     const { id } = req.params;
     const exam = exams.find(e => e.id === parseInt(id));
-    
+
     if (!exam) {
       return res.status(404).json({ message: 'Exam not found' });
     }
@@ -287,6 +287,33 @@ const getExamResults = async (req, res) => {
   }
 };
 
+// Get exams by class ID
+const getExamsByClass = async (req, res) => {
+  try {
+    const classId = req.params.classId;
+
+    // Find all exams for this class
+    const exams = await Exam.find({ class: classId })
+      .sort({ startDate: 1 });
+
+    // Update status for each exam
+    const updatedExams = await Promise.all(
+      exams.map(exam => updateExamStatus(exam))
+    );
+
+    res.status(200).json({
+      success: true,
+      data: updatedExams
+    });
+  } catch (error) {
+    console.error('Error fetching class exams:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch class exams'
+    });
+  }
+};
+
 module.exports = {
   getExams,
   getExamById,
@@ -295,5 +322,6 @@ module.exports = {
   getExam,
   updateExam,
   deleteExam,
-  getExamResults
-}; 
+  getExamResults,
+  getExamsByClass
+};

@@ -39,9 +39,8 @@ const userSchema = new mongoose.Schema({
   // Student specific fields
   class: {
     type: String,
-    required: function() {
-      return this.role === 'student';
-    }
+    // Not required as students might not be assigned to a class initially
+    default: ""
   },
   rollNo: {
     type: String,
@@ -65,7 +64,7 @@ const userSchema = new mongoose.Schema({
 // Hash password before saving
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
-  
+
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
@@ -88,4 +87,4 @@ userSchema.index({ class: 1 });
 
 const User = mongoose.model('User', userSchema);
 
-module.exports = User; 
+module.exports = User;

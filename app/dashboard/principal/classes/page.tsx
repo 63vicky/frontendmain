@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import DashboardLayout from "@/components/dashboard-layout"
 import { PlusCircle, Search, Edit, Trash2, Users, Loader2 } from "lucide-react"
-import { classApi, subjectApi } from "@/lib/api"
+import { classApi, getSubjects } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
@@ -83,7 +83,7 @@ export default function ClassManagement() {
   const loadSubjects = async () => {
     try {
       setLoadingSubjects(true)
-      const data = await subjectApi.getAllSubjects()
+      const data = await getSubjects()
       setSubjects(data.data)
     } catch (error) {
       toast({
@@ -162,9 +162,10 @@ export default function ClassManagement() {
       setSelectedClass(null)
       loadClasses()
     } catch (error) {
+      // Display the specific error message from the API
       toast({
         title: "Error",
-        description: "Failed to delete class",
+        description: error instanceof Error ? error.message : "Failed to delete class",
         variant: "destructive"
       })
     } finally {
