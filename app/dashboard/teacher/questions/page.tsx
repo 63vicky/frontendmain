@@ -549,8 +549,8 @@ export default function TeacherQuestionsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {allClasses.map((cls) => (
-                            <SelectItem key={cls} value={cls}>
-                              {cls}
+                            <SelectItem key={cls._id} value={cls.name}>
+                              {cls.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
