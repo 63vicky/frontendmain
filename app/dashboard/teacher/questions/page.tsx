@@ -61,7 +61,9 @@ export default function TeacherQuestionsPage() {
   const [questions, setQuestions] = useState<Question[]>([])
   const [loading, setLoading] = useState(true)
   const [subjects, setSubjects] = useState<string[]>([])
+  const [allSubjects, setAllSubjects] = useState<string[]>([])
   const [classes, setClasses] = useState<string[]>([])
+  const [allClasses, setAllClasses] = useState<string[]>([])
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -168,7 +170,7 @@ export default function TeacherQuestionsPage() {
   const fetchData = async () => {
     try {
       setLoading(true)
-      const [questionsRes, subjectsRes, classesRes] = await Promise.all([
+      const [questionsRes, subjectsRes, allSubjectsRes,classesRes, allClassesRes] = await Promise.all([
         api.questions.getAll({
           subject: selectedSubject !== "all" ? selectedSubject : undefined,
           className: selectedClass !== "all" ? selectedClass : undefined,
@@ -176,14 +178,17 @@ export default function TeacherQuestionsPage() {
           difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
           search: searchTerm || undefined,
         }),
-        // api.questions.getSubjects(),
+        api.questions.getSubjects(),
         getSubjects(),
         api.questions.getClasses(),
+        api.classes.getAll(),
       ])
 
       setQuestions(questionsRes.data)
       setSubjects(subjectsRes.data)
+      setAllSubjects(allSubjectsRes.data)
       setClasses(classesRes.data)
+      setAllClasses(allClassesRes.data)
     } catch (error) {
       toast({
         title: "Error",
@@ -525,7 +530,7 @@ export default function TeacherQuestionsPage() {
                           <SelectValue placeholder="Select subject" />
                         </SelectTrigger>
                         <SelectContent>
-                          {subjects.map((subject) => (
+                          {allSubjects.map((subject) => (
                             <SelectItem key={subject._id} value={subject.name}>
                               {subject.name}
                             </SelectItem>
@@ -543,7 +548,7 @@ export default function TeacherQuestionsPage() {
                           <SelectValue placeholder="Select class" />
                         </SelectTrigger>
                         <SelectContent>
-                          {classes.map((cls) => (
+                          {allClasses.map((cls) => (
                             <SelectItem key={cls} value={cls}>
                               {cls}
                             </SelectItem>
@@ -741,8 +746,8 @@ export default function TeacherQuestionsPage() {
               <SelectContent>
                 <SelectItem value="all">All Subjects</SelectItem>
                 {subjects.map((subject) => (
-                 <SelectItem key={subject._id} value={subject.name}>
-                 {subject.name}
+                 <SelectItem key={subject} value={subject}>
+                 {subject}
                </SelectItem>
                 ))}
               </SelectContent>
@@ -907,8 +912,8 @@ export default function TeacherQuestionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {subjects.map((subject) => (
-                      <SelectItem key={subject._id} value={subject.name}>
-                      {subject.name}
+                      <SelectItem key={subject} value={subject}>
+                      {subject}
                     </SelectItem>
                     ))}
                   </SelectContent>
