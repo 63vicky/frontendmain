@@ -526,8 +526,8 @@ export default function TeacherQuestionsPage() {
                         </SelectTrigger>
                         <SelectContent>
                           {subjects.map((subject) => (
-                            <SelectItem key={subject} value={subject}>
-                              {subject}
+                            <SelectItem key={subject._id} value={subject.name}>
+                              {subject.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -741,9 +741,9 @@ export default function TeacherQuestionsPage() {
               <SelectContent>
                 <SelectItem value="all">All Subjects</SelectItem>
                 {subjects.map((subject) => (
-                  <SelectItem key={subject} value={subject}>
-                    {subject}
-                  </SelectItem>
+                 <SelectItem key={subject._id} value={subject.name}>
+                 {subject.name}
+               </SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -907,9 +907,9 @@ export default function TeacherQuestionsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {subjects.map((subject) => (
-                      <SelectItem key={subject} value={subject}>
-                        {subject}
-                      </SelectItem>
+                      <SelectItem key={subject._id} value={subject.name}>
+                      {subject.name}
+                    </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
