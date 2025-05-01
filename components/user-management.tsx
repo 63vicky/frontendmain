@@ -159,7 +159,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
               });
 
               // Then update the class student count
-              const addResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${formData.class}/students`, {
+              const addResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/classes/${formData.class}/students`, {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',
@@ -283,7 +283,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         // If class has changed and there's a new class, add the student to it
         if (classChanged && newClassId) {
           try {
-            const addResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${newClassId}/students`, {
+            const addResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/classes/${newClassId}/students`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
@@ -344,7 +344,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
             });
 
             // Then, update the class's student count
-            const removeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/classes/${classId}/remove-students`, {
+            const removeResponse = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/classes/${classId}/remove-students`, {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',
