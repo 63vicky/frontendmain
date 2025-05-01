@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState, useEffect } from "react"
 import { useToast } from "@/hooks/use-toast"
-import { api } from "@/lib/api"
+import { api, getSubjects } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -176,7 +176,8 @@ export default function TeacherQuestionsPage() {
           difficulty: selectedDifficulty !== "all" ? selectedDifficulty : undefined,
           search: searchTerm || undefined,
         }),
-        api.questions.getSubjects(),
+        // api.questions.getSubjects(),
+        getSubjects(),
         api.questions.getClasses(),
       ])
 
