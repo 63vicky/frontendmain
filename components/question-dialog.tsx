@@ -33,6 +33,7 @@ interface QuestionDialogProps {
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
   existingQuestions?: Question[]
+  initialTab?: "create" | "existing"
 }
 
 export function QuestionDialog({
@@ -40,17 +41,25 @@ export function QuestionDialog({
   open,
   onOpenChange,
   onSuccess,
-  existingQuestions = []
+  existingQuestions = [],
+  initialTab = "create"
 }: QuestionDialogProps) {
+  console.log("QuestionDialog initialTab:", initialTab); // Debug log
+
   const [loading, setLoading] = useState(false)
   const [questionType, setQuestionType] = useState<'multiple-choice' | 'short-answer' | 'descriptive'>('multiple-choice')
-  const [activeTab, setActiveTab] = useState("create")
+  const [activeTab, setActiveTab] = useState<"create" | "existing">(initialTab)
   const [searchQuery, setSearchQuery] = useState("")
+  const [addedQuestions, setAddedQuestions] = useState<string[]>([])
+
+  // Debug log when activeTab changes
+  useEffect(() => {
+    console.log("activeTab changed to:", activeTab);
+  }, [activeTab]);
   const { toast } = useToast()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
   const [subjects, setSubjects] = useState<string[]>([])
   const [classes, setClasses] = useState<string[]>([])
-  const [selectedSubject, setSelectedSubject] = useState<string>('')
 
   // Memoize fetch options to prevent unnecessary re-renders
   const fetchOptions = useMemo(() => ({
@@ -85,13 +94,20 @@ export function QuestionDialog({
     }
   }, [activeTab, open, refetchQuestions])
 
-  // Reset search query when dialog closes
+  // Reset state when dialog closes or opens
   useEffect(() => {
+    console.log("Dialog open state changed:", open, "initialTab:", initialTab); // Debug log
+
     if (!open) {
+      console.log("Dialog closing, resetting state"); // Debug log
       setSearchQuery("")
-      setActiveTab("create")
+      setAddedQuestions([])
+    } else {
+      console.log("Dialog opening, setting activeTab to:", initialTab); // Debug log
+      // Set the active tab to initialTab when the dialog opens
+      setActiveTab(initialTab)
     }
-  }, [open])
+  }, [open, initialTab])
 
   // Filter questions based on search query
   const filteredQuestions = useMemo(() => {
@@ -101,19 +117,29 @@ export function QuestionDialog({
       q.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       q.chapter?.toLowerCase().includes(searchQuery.toLowerCase())
     )
-  }, [questionsData?.data, searchQuery])
+  }, [questionsData?.data, searchQuery, addedQuestions])
 
   // Check if a question is already added to the exam
   const isQuestionAdded = (question: Question) => {
-    if (!exam || !question.examIds) return false;
+    if (!exam || !question._id) return false;
 
     console.log('Checking if question is added:', {
       questionText: question.text,
-      questionExamIds: question.examIds,
-      currentExamId: exam._id
+      questionExamIds: question.examIds || [],
+      currentExamId: exam._id,
+      addedQuestions
     });
 
-    return question.examIds.includes(exam._id);
+    // Check if the question is in the existing questions array
+    const isInExistingQuestions = existingQuestions.some(q => q._id === question._id);
+
+    // Check if the question's examIds includes the current exam ID
+    const isInExamIds = question.examIds && question.examIds.includes(exam._id);
+
+    // Check if the question was added in the current session
+    const isAddedInCurrentSession = addedQuestions.includes(question._id);
+
+    return isInExistingQuestions || isInExamIds || isAddedInCurrentSession;
   }
 
   // Debug existing questions when they change
@@ -252,8 +278,19 @@ export function QuestionDialog({
         description: 'Question added successfully'
       })
 
+      // Add the new question ID to the addedQuestions state
+      setAddedQuestions(prev => [...prev, questionData.data._id]);
+
+      // Switch to the existing questions tab to show the newly created question
+      setActiveTab('existing')
+
+      // Call onSuccess to refresh the questions list but don't close the dialog
       onSuccess()
-      onOpenChange(false)
+
+      // Refresh the questions list to update the UI
+      if (questionsData) {
+        refetchQuestions()
+      }
     } catch (error) {
       console.error('Error adding question:', error);
       toast({
@@ -294,8 +331,19 @@ export function QuestionDialog({
         description: 'Question added successfully'
       })
 
+      // Add the question ID to the addedQuestions state
+      setAddedQuestions(prev => [...prev, question._id]);
+
+      // Ensure we stay on the existing questions tab
+      setActiveTab('existing')
+
+      // Call onSuccess to refresh the questions list but don't close the dialog
       onSuccess()
-      onOpenChange(false)
+
+      // Refresh the questions list to update the UI
+      if (questionsData) {
+        refetchQuestions()
+      }
     } catch (error) {
       console.error('Error adding question:', error);
       toast({
@@ -334,6 +382,14 @@ export function QuestionDialog({
     }
   }
 
+  // Force set the active tab to "existing" when the dialog opens
+  useEffect(() => {
+    if (open) {
+      console.log("Dialog is open, forcing activeTab to 'existing'");
+      setActiveTab("existing");
+    }
+  }, [open]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -342,7 +398,7 @@ export function QuestionDialog({
           <DialogDescription>Add questions to {exam?.title}</DialogDescription>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "create" | "existing")}>
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="create">Create New</TabsTrigger>
             <TabsTrigger value="existing">Add Existing</TabsTrigger>
@@ -356,7 +412,6 @@ export function QuestionDialog({
                   <Select
                     name="subject"
                     defaultValue={exam?.subject}
-                    onValueChange={(value) => setSelectedSubject(value)}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select subject" />
@@ -372,7 +427,7 @@ export function QuestionDialog({
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="class">Class</Label>
-                  <Select name="class" defaultValue={exam?.class}>
+                  <Select name="class" defaultValue={typeof exam?.class === 'string' ? exam.class : ''}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select class" />
                     </SelectTrigger>

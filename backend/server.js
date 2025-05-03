@@ -20,8 +20,11 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const classRoutes = require('./routes/classRoutes');
 const subjectRoutes = require('./routes/subjectRoutes');
 const examAnalyticsRoutes = require('./routes/examAnalyticsRoutes');
+const questionAnalyticsRoutes = require('./routes/questionAnalyticsRoutes');
 const questionRoutes = require('./routes/questionRoutes');
 const materialRoutes = require('./routes/materialRoutes');
+const attemptRoutes = require('./routes/attempts');
+const bulkUploadRoutes = require('./routes/bulkUploadRoutes');
 
 // Load environment variables
 dotenv.config();
@@ -82,7 +85,21 @@ const connectWithRetry = async () => {
 
 connectWithRetry();
 
-// Routes with caching for GET requests
+// // Apply caching middleware to specific routes
+// // Note: This approach applies caching at the router level, not individual routes
+// // For more granular caching, apply the middleware in the route files
+// app.use('/api/exams', cache(CACHE_DURATION.SHORT));
+// app.use('/api/results', cache(CACHE_DURATION.SHORT));
+// app.use('/api/dashboard', cache(CACHE_DURATION.SHORT));
+// app.use('/api/classes', cache(CACHE_DURATION.MEDIUM));
+// app.use('/api/subjects', cache(CACHE_DURATION.MEDIUM));
+// app.use('/api/questions', cache(CACHE_DURATION.SHORT));
+// app.use('/api/question-analytics', cache(CACHE_DURATION.SHORT));
+// app.use('/api/materials', cache(CACHE_DURATION.SHORT));
+// app.use('/api/attempts', cache(CACHE_DURATION.SHORT));
+// app.use('/api/bulk-uploads', cache(CACHE_DURATION.SHORT));
+
+// Register routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/exams', examRoutes);
@@ -91,24 +108,18 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/classes', classRoutes);
 app.use('/api/subjects', subjectRoutes);
 app.use('/api/exam-analytics', examAnalyticsRoutes);
+app.use('/api/question-analytics', questionAnalyticsRoutes);
 app.use('/api/questions', questionRoutes);
 app.use('/api/materials', materialRoutes);
-
-// Apply caching to specific routes
-app.get('/api/exams', cache(CACHE_DURATION.SHORT), examRoutes);
-app.get('/api/results', cache(CACHE_DURATION.SHORT), resultRoutes);
-app.get('/api/dashboard', cache(CACHE_DURATION.SHORT), dashboardRoutes);
-app.get('/api/classes', cache(CACHE_DURATION.MEDIUM), classRoutes);
-app.get('/api/subjects', cache(CACHE_DURATION.MEDIUM), subjectRoutes);
-app.get('/api/questions', cache(CACHE_DURATION.SHORT), questionRoutes);
-app.get('/api/materials', cache(CACHE_DURATION.SHORT), materialRoutes);
+app.use('/api/attempts', attemptRoutes);
+app.use('/api/bulk-uploads', bulkUploadRoutes);
 
 // Error handling middleware
 app.use(handleSpecificErrors);
 app.use(errorHandler);
 
 // 404 handler
-app.use((req, res) => {
+app.use((_req, res) => {
   res.status(404).json({
     status: 'fail',
     message: 'Route not found'

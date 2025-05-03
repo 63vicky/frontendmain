@@ -18,6 +18,7 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   // Allowed file types
   const allowedTypes = [
+    'text/csv', // CSV format
     'application/pdf',
     'application/msword',
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -36,7 +37,7 @@ const fileFilter = (req, file, cb) => {
   if (allowedTypes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error('Invalid file type. Only PDF, Word, Excel, PowerPoint, text, images, and compressed files are allowed.'), false);
+    cb(new Error('Invalid file type. Only PDF, Word, CSV, Excel, PowerPoint, text, images, and compressed files are allowed.'), false);
   }
 };
 

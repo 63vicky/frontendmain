@@ -9,11 +9,13 @@ import { BookOpen, Clock, CheckCircle, BarChart, Award, Calendar, AlertTriangle,
 import { useSearchParams, useRouter } from "next/navigation"
 import { Suspense, useEffect, useState } from "react"
 import { api } from "@/lib/api"
-import { Exam, Result, DashboardStats } from "@/lib/types"
+import { Exam, Result, DashboardStats, ExamAttempt } from "@/lib/types"
 
 // Extended Result interface to include additional properties
 interface ExtendedResult extends Result {
   rating?: string;
+  attemptNumber?: number;
+  marks?: number; // Add marks field for compatibility with Result model
   examId: {
     title: string;
     subject: string;
@@ -23,7 +25,14 @@ interface ExtendedResult extends Result {
     };
   };
 }
+
+// Extended Exam interface to include student attempts
+interface ExtendedExam extends Exam {
+  studentAttempts?: number;
+}
+
 import { authService } from "@/lib/services/auth"
+import { attemptService } from "@/lib/services/attempt"
 import { useToast } from "@/hooks/use-toast"
 
 export default function StudentDashboard() {
@@ -41,9 +50,10 @@ function StudentDashboardContent() {
   const [activeTab, setActiveTab] = useState("overview")
   const [loading, setLoading] = useState(true)
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
-  const [availableExams, setAvailableExams] = useState<Exam[]>([])
-  const [upcomingExams, setUpcomingExams] = useState<Exam[]>([])
+  const [availableExams, setAvailableExams] = useState<ExtendedExam[]>([])
+  const [upcomingExams, setUpcomingExams] = useState<ExtendedExam[]>([])
   const [recentResults, setRecentResults] = useState<ExtendedResult[]>([])
+  const [examAttempts, setExamAttempts] = useState<Record<string, ExamAttempt[]>>({})
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -80,24 +90,83 @@ function StudentDashboardContent() {
         // No need to fetch class information here as we have a dedicated classes page
 
         // Fetch available exams for the student's class
-        const examsResponse = await api.get<Exam[]>(`/exams/class/${user.class}`)
-        if (examsResponse.data) {
-          const exams = examsResponse.data
+        if (!user.class) {
+          console.log("Student doesn't have a class assigned")
+          setAvailableExams([])
+          setUpcomingExams([])
+        } else {
+          console.log("Fetching exams for class:", user.class)
+          try {
+            // Fetch exams
+            const examsResponse = await api.get<{success: boolean, data: Exam[]}>(`/exams/class/${user.class}`)
 
-          // Filter exams by status
-          const available = exams && exams.length > 0 && exams.filter(exam =>
-            exam.status === 'active' &&
-            new Date(exam.startDate) <= new Date() &&
-            new Date(exam.endDate) >= new Date()
-          )
+            // Fetch student's attempts for all exams
+            let attemptsData: Record<string, ExamAttempt[]> = {};
+            try {
+              console.log("Fetching student attempts...");
+              attemptsData = await attemptService.getStudentAttempts();
+              console.log("Attempts data received:", attemptsData);
+              setExamAttempts(attemptsData);
+            } catch (attemptError) {
+              console.error("Error fetching student attempts:", attemptError);
+              // Continue with empty attempts data
+            }
 
-          const upcoming = exams && exams.length > 0 && exams.filter(exam =>
-            exam.status === 'scheduled' ||
-            (exam.status === 'active' && new Date(exam.startDate) > new Date())
-          ).slice(0, 3) // Get only 3 upcoming exams
+            if (examsResponse.data && examsResponse.data.data) {
+              const exams = examsResponse.data.data;
+              console.log("Exams fetched:", exams);
 
-          setAvailableExams(available || [])
-          setUpcomingExams(upcoming || [])
+              // Add student attempts to each exam
+              const examsWithAttempts = exams.map(exam => {
+                // Get the exam ID as string
+                const examId = exam._id.toString();
+                console.log(`Processing exam ${examId} (${exam.title})`);
+
+                // Get attempts for this exam
+                const examAttemptsList = attemptsData[examId] || [];
+                console.log(`Found ${examAttemptsList.length} attempts for exam ${examId}`);
+
+                // Log the exam attempts data for debugging
+                console.log(`Exam ${examId} attempts data:`, {
+                  examAttempts: examAttemptsList.length,
+                  maxAttempts: exam.attempts?.max || 1,
+                  attemptsField: exam.attempts
+                });
+
+                // If the exam has a current attempts value of 5 and max of 5,
+                // this is likely a case where the backend is using the current field incorrectly
+                // In this case, we should use the actual student attempts count instead
+
+                return {
+                  ...exam,
+                  studentAttempts: examAttemptsList.length
+                } as ExtendedExam;
+              });
+
+              // Filter exams by status
+              const available = examsWithAttempts && examsWithAttempts.length > 0 && examsWithAttempts.filter(exam =>
+                exam.status === 'active' &&
+                new Date(exam.startDate) <= new Date() &&
+                new Date(exam.endDate) >= new Date()
+              )
+
+              const upcoming = examsWithAttempts && examsWithAttempts.length > 0 && examsWithAttempts.filter(exam =>
+                exam.status === 'scheduled' ||
+                (exam.status === 'active' && new Date(exam.startDate) > new Date())
+              ).slice(0, 3) // Get only 3 upcoming exams
+
+              setAvailableExams(available || [])
+              setUpcomingExams(upcoming || [])
+            } else {
+              console.log("No exams data in response")
+              setAvailableExams([])
+              setUpcomingExams([])
+            }
+          } catch (error) {
+            console.error("Error fetching exams:", error)
+            setAvailableExams([])
+            setUpcomingExams([])
+          }
         }
 
         // Fetch student's results
@@ -239,7 +308,7 @@ function StudentDashboardContent() {
                     <CardContent>
                       <div className="text-2xl font-bold text-amber-700 dark:text-amber-400">
                         {recentResults.length > 0
-                          ? `${Math.max(...recentResults.map(r => r.score))}%`
+                          ? `${Math.max(...recentResults.map(r => r.score || r.marks || 0))}%`
                           : 'N/A'}
                       </div>
                     </CardContent>
@@ -288,9 +357,32 @@ function StudentDashboardContent() {
                                     <Clock className="h-3 w-3 mr-1 inline" />
                                     {startDate.toLocaleDateString()} {startDate.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                   </p>
-                                  <p className="text-xs text-muted-foreground dark:text-slate-500">
-                                    Attempts: {exam.attempts?.current || 0}/{exam.attempts?.max || 1}
-                                  </p>
+                                  <div className="space-y-1">
+                                    <div className="flex justify-between text-xs text-muted-foreground dark:text-slate-500">
+                                      <span>Attempts: {exam.studentAttempts || 0}/{exam.attempts?.max || 1}</span>
+                                      {exam.studentAttempts && exam.attempts?.max && (
+                                        <span className={exam.studentAttempts >= exam.attempts.max ? "text-red-500 dark:text-red-400" :
+                                          exam.studentAttempts >= Math.floor(exam.attempts.max * 0.75) ? "text-amber-500 dark:text-amber-400" :
+                                          "text-green-500 dark:text-green-400"}>
+                                          {exam.studentAttempts >= exam.attempts.max ? "Max reached" :
+                                            `${exam.attempts.max - exam.studentAttempts} left`}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="h-1 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                      <div
+                                        className={`h-1 rounded-full ${
+                                          exam.studentAttempts && exam.attempts?.max && exam.studentAttempts >= exam.attempts.max
+                                            ? "bg-red-500 dark:bg-red-600"
+                                            : exam.studentAttempts && exam.attempts?.max && exam.studentAttempts >= Math.floor(exam.attempts.max * 0.75)
+                                              ? "bg-amber-500 dark:bg-amber-600"
+                                              : "bg-green-500 dark:bg-green-600"
+                                        }`}
+                                        style={{ width: `${exam.studentAttempts && exam.attempts?.max ?
+                                          Math.min(100, (exam.studentAttempts / exam.attempts.max) * 100) : 0}%` }}
+                                      />
+                                    </div>
+                                  </div>
                                 </div>
                                 <Button
                                   asChild
@@ -452,21 +544,47 @@ function StudentDashboardContent() {
                                 Points: {exam.questions && exam.questions.length ? exam.questions.length * 10 : 100}
                               </span>
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              Attempts: {exam.attempts?.current || 0}/{exam.attempts?.max || 1}
-                            </p>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Attempts: {exam.studentAttempts || 0}/{exam.attempts?.max || 1}</span>
+                                {exam.studentAttempts && exam.attempts?.max && (
+                                  <span className={exam.studentAttempts >= exam.attempts.max ? "text-red-500" :
+                                    exam.studentAttempts >= Math.floor(exam.attempts.max * 0.75) ? "text-amber-500" : "text-green-500"}>
+                                    {exam.studentAttempts >= exam.attempts.max ? "Max reached" :
+                                      `${exam.attempts.max - exam.studentAttempts} left`}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-1.5 rounded-full ${
+                                    exam.studentAttempts && exam.attempts?.max && exam.studentAttempts >= exam.attempts.max
+                                      ? "bg-red-500 dark:bg-red-600"
+                                      : exam.studentAttempts && exam.attempts?.max && exam.studentAttempts >= Math.floor(exam.attempts.max * 0.75)
+                                        ? "bg-amber-500 dark:bg-amber-600"
+                                        : "bg-green-500 dark:bg-green-600"
+                                  }`}
+                                  style={{ width: `${exam.studentAttempts && exam.attempts?.max ?
+                                    Math.min(100, (exam.studentAttempts / exam.attempts.max) * 100) : 0}%` }}
+                                />
+                              </div>
+                            </div>
                           </div>
                           <Button
-                            disabled={status !== "Available"}
+                            disabled={status !== "Available" || (!!exam.studentAttempts && !!exam.attempts?.max && exam.studentAttempts >= exam.attempts.max)}
                             className={`w-full md:w-auto ${
-                              status === "Available"
+                              status === "Available" && (!exam.studentAttempts || !exam.attempts?.max || exam.studentAttempts < exam.attempts.max)
                                 ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
                                 : ""
                             }`}
                             asChild
                           >
                             <Link href={`/exam/${exam._id}`}>
-                              {status === "Available" ? "Start Exam" : "Not Available Yet"}
+                              {status !== "Available"
+                                ? "Not Available Yet"
+                                : !!exam.studentAttempts && !!exam.attempts?.max && exam.studentAttempts >= exam.attempts.max
+                                  ? "Max Attempts Reached"
+                                  : "Start Exam"}
                             </Link>
                           </Button>
                         </div>
@@ -527,9 +645,27 @@ function StudentDashboardContent() {
                               <Calendar className="h-3.5 w-3.5 mr-1" />
                               Completed: {completedDate.toLocaleDateString()}
                             </p>
-                            <p className="text-sm text-muted-foreground">
-                              Attempts: {result.examId?.attempts?.current || 1}/{result.examId?.attempts?.max || 1}
-                            </p>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-sm text-muted-foreground">
+                                <span>Attempt: {result.attemptNumber || 1} of {result.examId?.attempts?.max || 1}</span>
+                                {result.attemptNumber && result.examId?.attempts?.max && (
+                                  <span className={
+                                    result.attemptNumber >= result.examId.attempts.max ? "text-blue-500" : "text-slate-500"
+                                  }>
+                                    {result.attemptNumber >= result.examId.attempts.max ?
+                                      "Final attempt" :
+                                      `${result.examId.attempts.max - result.attemptNumber} more available`}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div
+                                  className="h-1.5 rounded-full bg-blue-500 dark:bg-blue-600"
+                                  style={{ width: `${result.attemptNumber && result.examId?.attempts?.max ?
+                                    Math.min(100, (result.attemptNumber / result.examId.attempts.max) * 100) : 0}%` }}
+                                />
+                              </div>
+                            </div>
                             <div className="flex items-center gap-2 mt-1">
                               <div className="h-2 w-24 rounded-full bg-slate-100">
                                 <div

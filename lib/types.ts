@@ -28,7 +28,11 @@ export interface Exam {
   _id: string
   title: string
   subject: string
-  class: string
+  class: string | {
+    _id: string
+    name: string
+    section: string
+  }
   chapter: string
   status: 'draft' | 'scheduled' | 'active' | 'completed' | 'archived'
   startDate: string
@@ -69,6 +73,7 @@ export interface Question {
 
 export interface ExamAttempt {
   id: string
+  _id?: string
   examId: string
   studentId: string
   startTime: string
@@ -81,7 +86,35 @@ export interface ExamAttempt {
     questionId: string
     selectedOption: string
     isCorrect: boolean
+    points?: number
+    timeSpent?: number
   }[]
+  timeSpent?: number
+  createdAt?: string
+  updatedAt?: string
+  feedback?: {
+    text: string
+    teacherId?: string
+    createdAt?: string
+  }
+  questionTimings?: Array<{
+    questionId: string
+    startTime: string
+    endTime: string
+    timeSpent: number
+  }>
+  categoryBreakdown?: Array<{
+    category: string
+    correct: number
+    total: number
+    percentage: number
+  }>
+  classRank?: {
+    rank: number
+    totalStudents: number
+    percentile: number
+  }
+  status?: string
 }
 
 // Result types
@@ -148,9 +181,21 @@ export interface ClassPerformance {
 
 export interface Result {
   _id: string
-  examId: string
+  examId: string | {
+    _id: string
+    title: string
+    subject: string
+    class: string
+    attempts?: {
+      current: number
+      max: number
+    }
+  }
   studentId: string
   score: number
+  marks?: number // Alternative field for score in some API responses
+  attemptNumber?: number
+  rating?: string
   answers: {
     questionId: string
     answer: string | string[]
@@ -159,21 +204,55 @@ export interface Result {
   }[]
   startedAt: string
   submittedAt: string
+  // Fields used in ExamAttempt compatibility
+  startTime?: string
+  endTime?: string
+  timeSpent?: number // Time spent in seconds
   status: 'in-progress' | 'completed' | 'graded'
   feedback?: string
   createdBy: string
   createdAt: string
   updatedAt: string
+  // Additional fields for analytics
+  questionTimings?: Array<{
+    questionId: string
+    startTime: string
+    endTime: string
+    timeSpent: number
+  }>
+  categoryBreakdown?: Array<{
+    category: string
+    correct: number
+    total: number
+    percentage: number
+  }>
+  classRank?: {
+    rank: number
+    totalStudents: number
+    percentile: number
+  }
+  // Class statistics for question-level comparison
+  classStats?: Array<{
+    questionId: string
+    averageTime: string
+    successRate: number
+  }>
 }
 
 export interface Class {
   _id: string
   name: string
-  subject: string
+  section: string
+  subject: string | {
+    _id: string
+    name: string
+    code: string
+  }
   students: number
   schedule: string
-  room: string
-  teacher: {
+  room?: string
+  status?: 'Active' | 'Inactive'
+  teacher?: {
     _id: string
     name: string
     email: string
@@ -193,4 +272,31 @@ export interface ClassFormData {
   subject: string
   schedule: string
   room: string
+}
+
+export interface BulkUpload {
+  _id: string
+  fileName: string
+  originalName: string
+  fileType: string
+  fileSize: number
+  uploadType: 'students' | 'teachers' | 'questions' | 'results'
+  status: 'processing' | 'completed' | 'failed'
+  uploadedBy: {
+    _id: string
+    name: string
+    email: string
+  }
+  totalRecords: number
+  successCount: number
+  failureCount: number
+  errors?: Array<{
+    row: number
+    message: string
+  }>
+  processedData?: {
+    records?: any[]
+  }
+  createdAt: string
+  updatedAt: string
 }

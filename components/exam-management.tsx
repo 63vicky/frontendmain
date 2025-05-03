@@ -47,8 +47,33 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
   const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<Exam | null>(null)
+  const [classes, setClasses] = useState<any[]>([])
   const { toast } = useToast()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
+  // Fetch classes when component mounts
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        const response = await fetch(`${API_URL}/classes`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch classes');
+        }
+
+        const data = await response.json();
+        setClasses(data.data || []);
+      } catch (err) {
+        console.error('Error fetching classes:', err);
+      }
+    };
+
+    fetchClasses();
+  }, [API_URL]);
 
   // Memoize fetch options
   const fetchOptions = useMemo(() => ({
@@ -207,22 +232,24 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
     return examsData.data.filter((exam) => {
       const matchesSearch = exam.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         exam.subject.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesStatus = activeTab === 'active' 
+
+      const matchesStatus = activeTab === 'active'
         ? ['active', 'scheduled', 'draft'].includes(exam.status)
         : ['completed', 'archived'].includes(exam.status);
-      
+
       return matchesSearch && matchesStatus;
     });
   }, [examsData?.data, searchQuery, activeTab]);
 
   // Handle add question
   const handleAddQuestion = useCallback((exam: Exam) => {
+    console.log("handleAddQuestion called for exam:", exam.title); // Debug log
     if (onAddQuestion) {
       onAddQuestion(exam);
     } else {
       setSelectedExam(exam);
       setIsQuestionDialogOpen(true);
+      console.log("Opening question dialog with initialTab=existing"); // Debug log
     }
   }, [onAddQuestion]);
 
@@ -269,9 +296,13 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
   }, [refetch]);
 
   // Handle dialog close
-  const handleDialogClose = useCallback(() => {
-    setIsQuestionDialogOpen(false);
-    setSelectedExam(null);
+  const handleDialogClose = useCallback((isOpen: boolean) => {
+    console.log("handleDialogClose called with isOpen:", isOpen); // Debug log
+
+    if (!isOpen) {
+      setIsQuestionDialogOpen(false);
+      setSelectedExam(null);
+    }
   }, []);
 
   if (loading) {
@@ -347,7 +378,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                         <div>
                           <CardTitle>{exam.title}</CardTitle>
                           <CardDescription>
-                            {exam.subject} - {exam.class}
+                            {exam.subject} - {typeof exam.class === 'object' ? `${exam.class.name} ${exam.class.section}` : exam.class}
                           </CardDescription>
                         </div>
                         <Badge variant={exam.status === 'active' ? 'default' : 'secondary'}>
@@ -416,6 +447,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
         onOpenChange={handleDialogClose}
         onSuccess={handleQuestionSuccess}
         existingQuestions={questionsData?.data || []}
+        initialTab="existing"
       />
 
       {/* Edit Exam Dialog */}
@@ -494,12 +526,21 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="class">Class</Label>
-                <Input
-                  id="class"
+                <Select
                   name="class"
-                  defaultValue={editingExam?.class}
-                  required
-                />
+                  defaultValue={typeof editingExam?.class === 'object' ? editingExam?.class._id : editingExam?.class}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((cls) => (
+                      <SelectItem key={cls._id} value={cls._id}>
+                        {cls.name} - {cls.section}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="chapter">Chapter</Label>

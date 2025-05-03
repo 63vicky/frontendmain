@@ -1,0 +1,4 @@
+name,email,password,class,section,rollNo,status
+John Doe,john.doe@example.com,password123,10A,A,10001,active
+Jane Smith,jane.smith@example.com,password123,8A,A,9002,active
+Sam Wilson,sam.wilson@example.com,password123,12A,A,8003,active

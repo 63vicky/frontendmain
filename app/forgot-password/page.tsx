@@ -10,23 +10,38 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "@/components/ui/use-toast"
 import LoginLayout from "@/components/login-layout"
-import { KeyRound } from "lucide-react"
+import { KeyRound, Loader2 } from "lucide-react"
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [submitted, setSubmitted] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setIsLoading(true)
 
-    // In a real application, you would send a password reset email
-    toast({
-      title: "Reset Email Sent",
-      description: "Check your inbox for password reset instructions",
-    })
+    try {
+      // In a real application, you would send a password reset email
+      // Simulate API call with a delay
+      await new Promise(resolve => setTimeout(resolve, 1500))
 
-    setSubmitted(true)
+      toast({
+        title: "Reset Email Sent",
+        description: "Check your inbox for password reset instructions",
+      })
+
+      setSubmitted(true)
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to send reset email. Please try again.",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -54,8 +69,16 @@ export default function ForgotPasswordPage() {
           <Button
             type="submit"
             className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 dark:from-indigo-700 dark:to-indigo-800 dark:hover:from-indigo-600 dark:hover:to-indigo-700"
+            disabled={isLoading}
           >
-            Send Reset Instructions
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              "Send Reset Instructions"
+            )}
           </Button>
         </form>
       ) : (

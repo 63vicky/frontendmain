@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { auth, authorize } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const Question = require('../models/Question');
 const Exam = require('../models/Exam');
 
 // Create new question (Teacher only)
-router.post('/', auth, authorize('teacher'), async (req, res) => {
+router.post('/', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const { examId, ...questionData } = req.body;
 
@@ -38,7 +38,7 @@ router.post('/', auth, authorize('teacher'), async (req, res) => {
 });
 
 // Get questions for an exam
-router.get('/exam/:examId', auth, async (req, res) => {
+router.get('/exam/:examId', authenticate, async (req, res) => {
   try {
     const exam = await Exam.findById(req.params.examId);
 
@@ -47,7 +47,7 @@ router.get('/exam/:examId', auth, async (req, res) => {
     }
 
     // Check access permissions
-    if (req.user.role === 'student' && 
+    if (req.user.role === 'student' &&
         (exam.status !== 'active' || exam.class !== req.user.class)) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -66,7 +66,7 @@ router.get('/exam/:examId', auth, async (req, res) => {
 });
 
 // Get single question (Teacher only)
-router.get('/:id', auth, authorize('teacher'), async (req, res) => {
+router.get('/:id', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const question = await Question.findById(req.params.id);
 
@@ -91,7 +91,7 @@ router.get('/:id', auth, authorize('teacher'), async (req, res) => {
 });
 
 // Update question (Teacher only)
-router.put('/:id', auth, authorize('teacher'), async (req, res) => {
+router.put('/:id', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const question = await Question.findById(req.params.id);
 
@@ -122,7 +122,7 @@ router.put('/:id', auth, authorize('teacher'), async (req, res) => {
 });
 
 // Delete question (Teacher only)
-router.delete('/:id', auth, authorize('teacher'), async (req, res) => {
+router.delete('/:id', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const question = await Question.findById(req.params.id);
 
@@ -152,4 +152,4 @@ router.delete('/:id', auth, authorize('teacher'), async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

@@ -264,7 +264,7 @@ export default function TeacherQuestionsPage() {
       })
       setSelectedQuestions([])
       setSelectAll(false)
-      fetchData()
+      
     } catch (error) {
       toast({
         title: "Error",
@@ -272,6 +272,7 @@ export default function TeacherQuestionsPage() {
         variant: "destructive",
       })
     } finally {
+      fetchData()
       setLoading(false)
     }
   }
@@ -331,7 +332,7 @@ export default function TeacherQuestionsPage() {
       })
       setShowDeleteDialog(false)
       setSelectedQuestion(null)
-      fetchData()
+      
     } catch (error) {
       toast({
         title: "Error",
@@ -339,6 +340,7 @@ export default function TeacherQuestionsPage() {
         variant: "destructive",
       })
     } finally {
+      fetchData()
       setLoading(false)
     }
   }
@@ -385,7 +387,7 @@ export default function TeacherQuestionsPage() {
         tags: [],
       })
 
-      fetchData()
+      
     } catch (error) {
       toast({
         title: "Error",
@@ -393,6 +395,7 @@ export default function TeacherQuestionsPage() {
         variant: "destructive",
       })
     } finally {
+      fetchData()
       setLoading(false)
     }
   }

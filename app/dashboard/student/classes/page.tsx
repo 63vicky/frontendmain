@@ -100,28 +100,35 @@ export default function StudentClasses() {
       if (!studentClass || studentClass === "") {
         // If student doesn't have a class, just set loading to false and return
         // The UI will show "You are not enrolled in any class" message
+        console.log("Student doesn't have a class assigned")
         setLoading(false)
         return
       }
 
-      // Fetch class details, materials, and exams
-      const [classRes, materialsRes, examsRes] = await Promise.all([
-        api.get<ApiResponse<Class>>(`/classes/${studentClass}`),
-        api.get<ApiResponse<Material[]>>(`/materials/class/${studentClass}`),
-        api.get<ApiResponse<Exam[]>>(`/exams/class/${studentClass}`)
-      ])
+      console.log("Fetching data for class:", studentClass)
 
-      if (classRes.data.data) {
-        setClasses([classRes.data.data])
-      }
+      try {
+        // Fetch class details, materials, and exams
+        const [classRes, materialsRes, examsRes] = await Promise.all([
+          api.get<ApiResponse<Class>>(`/classes/${studentClass}`),
+          api.get<ApiResponse<Material[]>>(`/materials/class/${studentClass}`),
+          api.get<ApiResponse<Exam[]>>(`/exams/class/${studentClass}`)
+        ])
 
-      if (materialsRes.data.data) {
-        setMaterials(materialsRes.data.data)
-      }
+        console.log("Class data:", classRes.data)
+        console.log("Exams data:", examsRes.data)
 
-      if (examsRes.data.data) {
-        setExams(examsRes.data.data)
-      }
+        if (classRes.data.data) {
+          setClasses([classRes.data.data])
+        }
+
+        if (materialsRes.data.data) {
+          setMaterials(materialsRes.data.data)
+        }
+
+        if (examsRes.data.data) {
+          setExams(examsRes.data.data)
+        }
     } catch (error) {
       console.error("Error fetching data:", error)
       toast({
@@ -133,6 +140,17 @@ export default function StudentClasses() {
       setLoading(false)
     }
   }
+ catch (error) {
+  console.error("Error:", error)
+  toast({
+    title: "Error",
+    description: "An unexpected error occurred",
+    variant: "destructive"
+  })
+} finally {
+  setLoading(false)
+}
+}
 
   const filteredMaterials = materials.filter(material =>
     material.title.toLowerCase().includes(materialSearchTerm.toLowerCase()) ||
@@ -417,3 +435,6 @@ export default function StudentClasses() {
     </DashboardLayout>
   )
 }
+
+
+

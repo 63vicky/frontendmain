@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useToast } from "@/hooks/use-toast"
 import { ThemeToggle } from "@/components/theme-toggle"
-import { BookOpen, GraduationCap, Building2, EyeOff, Eye } from "lucide-react"
+import { BookOpen, GraduationCap, Building2, EyeOff, Eye, Loader2 } from "lucide-react"
 import { authService } from "@/lib/services/auth"
 
 export default function LoginPage() {
@@ -222,7 +222,14 @@ function LoginContent() {
                 className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 dark:from-indigo-700 dark:to-indigo-800 dark:hover:from-indigo-600 dark:hover:to-indigo-700"
                 disabled={isLoading}
               >
-                {isLoading ? "Logging in..." : "Login"}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Logging in...
+                  </>
+                ) : (
+                  "Login"
+                )}
               </Button>
             </form>
           </div>

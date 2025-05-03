@@ -51,6 +51,7 @@ const questionSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
+
   examIds: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Exam'
@@ -80,4 +81,4 @@ questionSchema.index({ status: 1 });
 
 const Question = mongoose.model('Question', questionSchema);
 
-module.exports = Question; 
+module.exports = Question;

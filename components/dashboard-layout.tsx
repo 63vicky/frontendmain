@@ -131,6 +131,11 @@ function DashboardContent({
           icon: <ClipboardList className="h-5 w-5" />,
         },
         {
+          name: "Bulk Upload",
+          href: `/dashboard/${role}/bulk-upload`,
+          icon: <FileUp className="h-5 w-5" />,
+        },
+        {
           name: "Activity Logs",
           href: `/dashboard/${role}/logs`,
           icon: <History className="h-5 w-5" />,
@@ -254,11 +259,9 @@ function DashboardContent({
               <Link href={`/dashboard/${role}`} className="hover:underline flex items-center">
                 Dashboard
               </Link>
-              <Button onClick={handleLogout} variant="outline">
-
+              <Button onClick={handleLogout} variant="outline" className="text-foreground">
                   <LogOut className="h-4 w-4 mr-2" />
                   Logout
-                {/* </Link> */}
               </Button>
             </nav>
             <Button
@@ -311,7 +314,7 @@ function DashboardContent({
           <div className="p-4">
             <div className="mb-6">
               <div className="text-xs uppercase text-indigo-500 dark:text-indigo-400 font-semibold tracking-wider mb-2">
-                {role.charAt(0).toUpperCase() + role.slice(1)} Dashboard
+                {role && role.charAt(0).toUpperCase() + role.slice(1)} Dashboard
               </div>
             </div>
             <nav className="space-y-1">

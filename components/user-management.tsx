@@ -19,6 +19,21 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { PasswordInput } from "@/components/ui/password-input"
 import { teacherApi, studentApi, classApi } from "@/lib/api"
 import { useToast } from "@/hooks/use-toast"
+import { Loader2, Check, ChevronsUpDown } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
+import { cn } from "@/lib/utils"
 
 interface UserManagementProps {
   userType: "teacher" | "student"
@@ -58,12 +73,15 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
   const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingClasses, setLoadingClasses] = useState(true)
+  const [addingUser, setAddingUser] = useState(false)
+  const [updatingUser, setUpdatingUser] = useState(false)
+  const [deletingUser, setDeletingUser] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     subject: '',
-    classes: '',
+    classes: [] as string[],
     class: '',
     rollNo: ''
   })
@@ -129,12 +147,12 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setAddingUser(true)
     try {
       if (userType === 'teacher') {
-        const classes = formData.classes.split(',').map(c => c.trim())
         await teacherApi.createTeacher({
           ...formData,
-          classes
+          classes: formData.classes
         })
       } else {
         // Create the student with or without a class
@@ -190,7 +208,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         email: '',
         password: '',
         subject: '',
-        classes: '',
+        classes: [],
         class: '',
         rollNo: ''
       })
@@ -207,6 +225,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         description: `Failed to add ${userType}`,
         variant: "destructive"
       })
+    } finally {
+      setAddingUser(false)
     }
   }
 
@@ -219,6 +239,7 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
     e.preventDefault()
     if (!editData) return
 
+    setUpdatingUser(true)
     try {
       if (userType === 'teacher') {
         const teacher = editData as Teacher
@@ -322,11 +343,15 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         description: `Failed to update ${userType}`,
         variant: "destructive"
       })
+    } finally {
+      setUpdatingUser(false)
     }
   }
 
   const handleDelete = async (id: string) => {
     if (!confirm(`Are you sure you want to delete this ${userType}?`)) return
+
+    setDeletingUser(true)
     try {
       if (userType === 'teacher') {
         await teacherApi.deleteTeacher(id)
@@ -384,6 +409,8 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
         description: `Failed to delete ${userType}`,
         variant: "destructive"
       })
+    } finally {
+      setDeletingUser(false)
     }
   }
 
@@ -473,7 +500,12 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
               className="w-full"
             />
           </div>
-          <Button onClick={() => setShowAddDialog(true)}>Add {userType === "teacher" ? "Teacher" : "Student"}</Button>
+          <Button
+            onClick={() => setShowAddDialog(true)}
+            disabled={addingUser || updatingUser || deletingUser}
+          >
+            Add {userType === "teacher" ? "Teacher" : "Student"}
+          </Button>
         </div>
 
         <Table>
@@ -504,7 +536,12 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 {userType === "teacher" ? (
                   <>
                     <TableCell>{(user as Teacher).subject}</TableCell>
-                    <TableCell>{(user as Teacher).classes.join(', ')}</TableCell>
+                    <TableCell>
+                      {(user as Teacher).classes.map(classId => {
+                        const classObj = classes.find(c => c._id === classId);
+                        return classObj ? classObj.name : classId;
+                      }).join(', ')}
+                    </TableCell>
                   </>
                 ) : (
                   <>
@@ -538,8 +575,16 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       size="sm"
                       className="text-red-500"
                       onClick={() => handleDelete(user._id)}
+                      disabled={deletingUser}
                     >
-                      Delete
+                      {deletingUser ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        "Delete"
+                      )}
                     </Button>
                   )}
                 </TableCell>
@@ -616,14 +661,55 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                     <Label htmlFor="classes" className="text-right">
                       Classes
                     </Label>
-                    <Input
-                      id="classes"
-                      className="col-span-3"
-                      placeholder="e.g., 8A, 9B, 10C"
-                      value={formData.classes}
-                      onChange={(e) => setFormData({ ...formData, classes: e.target.value })}
-                      required
-                    />
+                    <div className="col-span-3">
+                      {loadingClasses ? (
+                        <Skeleton className="h-10 w-full" />
+                      ) : classes.length > 0 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between"
+                            >
+                              {formData.classes.length > 0
+                                ? `${formData.classes.length} classes selected`
+                                : "Select classes"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-full p-0">
+                            <Command>
+                              <CommandInput placeholder="Search classes..." />
+                              <CommandEmpty>No class found.</CommandEmpty>
+                              <CommandGroup className="max-h-60 overflow-y-auto">
+                                {classes.map((cls) => (
+                                  <CommandItem
+                                    key={cls._id}
+                                    value={cls.name}
+                                    onSelect={() => {
+                                      const isSelected = formData.classes.includes(cls._id);
+                                      const updatedClasses = isSelected
+                                        ? formData.classes.filter(id => id !== cls._id)
+                                        : [...formData.classes, cls._id];
+                                      setFormData({ ...formData, classes: updatedClasses });
+                                    }}
+                                  >
+                                    <Checkbox
+                                      checked={formData.classes.includes(cls._id)}
+                                      className="mr-2"
+                                    />
+                                    {cls.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                      ) : (
+                        <p className="text-sm text-slate-500">No classes available</p>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : (
@@ -672,7 +758,16 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
               )}
             </div>
             <DialogFooter>
-              <Button type="submit">Add {userType === "teacher" ? "Teacher" : "Student"}</Button>
+              <Button type="submit" disabled={addingUser}>
+                {addingUser ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  <>Add {userType === "teacher" ? "Teacher" : "Student"}</>
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -732,14 +827,55 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                       <Label htmlFor="edit-classes" className="text-right">
                         Classes
                       </Label>
-                      <Input
-                        id="edit-classes"
-                        className="col-span-3"
-                        placeholder="e.g., 8A, 9B, 10C"
-                        value={(editData as Teacher).classes.join(', ')}
-                        onChange={(e) => setEditData({ ...editData, classes: e.target.value.split(',').map(c => c.trim()) })}
-                        required
-                      />
+                      <div className="col-span-3">
+                        {loadingClasses ? (
+                          <Skeleton className="h-10 w-full" />
+                        ) : classes.length > 0 ? (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                role="combobox"
+                                className="w-full justify-between"
+                              >
+                                {(editData as Teacher).classes.length > 0
+                                  ? `${(editData as Teacher).classes.length} classes selected`
+                                  : "Select classes"}
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-full p-0">
+                              <Command>
+                                <CommandInput placeholder="Search classes..." />
+                                <CommandEmpty>No class found.</CommandEmpty>
+                                <CommandGroup className="max-h-60 overflow-y-auto">
+                                  {classes.map((cls) => (
+                                    <CommandItem
+                                      key={cls._id}
+                                      value={cls.name}
+                                      onSelect={() => {
+                                        const isSelected = (editData as Teacher).classes.includes(cls._id);
+                                        const updatedClasses = isSelected
+                                          ? (editData as Teacher).classes.filter(id => id !== cls._id)
+                                          : [...(editData as Teacher).classes, cls._id];
+                                        setEditData({ ...editData, classes: updatedClasses });
+                                      }}
+                                    >
+                                      <Checkbox
+                                        checked={(editData as Teacher).classes.includes(cls._id)}
+                                        className="mr-2"
+                                      />
+                                      {cls.name}
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        ) : (
+                          <p className="text-sm text-slate-500">No classes available</p>
+                        )}
+                      </div>
                     </div>
                   </>
                 ) : (
@@ -790,7 +926,16 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 )}
               </div>
               <DialogFooter>
-                <Button type="submit">Update {userType === "teacher" ? "Teacher" : "Student"}</Button>
+                <Button type="submit" disabled={updatingUser}>
+                  {updatingUser ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>Update {userType === "teacher" ? "Teacher" : "Student"}</>
+                  )}
+                </Button>
               </DialogFooter>
             </form>
           )}

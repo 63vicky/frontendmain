@@ -1,5 +1,5 @@
 const User = require('../models/User');
-const Exam = require('../models/Exam');
+const Exam = require('../models/Exam_updated');
 const Result = require('../models/Result');
 
 // Get principal dashboard statistics
@@ -41,17 +41,30 @@ const getPrincipalRecentExams = async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(5)
       .populate('createdBy', 'name')
+      .populate('class', 'name section') // Populate class data
       .lean();
 
-    const formattedExams = recentExams.map(exam => ({
-      id: exam._id,
-      name: exam.title,
-      date: exam.createdAt,
-      status: exam.status,
-      subject: exam.subject,
-      class: exam.class,
-      teacherName: exam.createdBy?.name
-    }));
+    const formattedExams = recentExams.map(exam => {
+      // Handle both string and ObjectId class references
+      let classInfo;
+      if (typeof exam.class === 'object' && exam.class !== null) {
+        // If class is populated as an object
+        classInfo = `${exam.class.name} ${exam.class.section || ''}`.trim();
+      } else {
+        // If class is still a string (legacy data)
+        classInfo = exam.class;
+      }
+
+      return {
+        id: exam._id,
+        name: exam.title,
+        date: exam.createdAt,
+        status: exam.status,
+        subject: exam.subject,
+        class: classInfo,
+        teacherName: exam.createdBy?.name
+      };
+    });
 
     res.json(formattedExams);
   } catch (error) {
@@ -119,7 +132,7 @@ const getClassPerformance = async (req, res) => {
 const getTeacherStats = async (req, res) => {
   try {
     const teacherId = req.params.teacherId;
-    
+
     const [
       totalStudents,
       activeExams,
@@ -147,24 +160,38 @@ const getTeacherStats = async (req, res) => {
 const getTeacherRecentExams = async (req, res) => {
   try {
     const teacherId = req.params.teacherId;
-    
+
     const recentExams = await Exam.find({ createdBy: teacherId })
       .sort({ createdAt: -1 })
       .limit(5)
-      .populate('class', 'name')
+      .populate('class', 'name section')
       .lean();
 
     const examsWithStats = await Promise.all(recentExams.map(async exam => {
-      const totalStudents = await User.countDocuments({ role: 'student', class: exam.class });
+      // Handle both string and ObjectId class references for querying students
+      let classQuery;
+      let classDisplay;
+
+      if (typeof exam.class === 'object' && exam.class !== null) {
+        // If class is populated as an object
+        classQuery = exam.class._id;
+        classDisplay = `${exam.class.name} ${exam.class.section || ''}`.trim();
+      } else {
+        // If class is still a string (legacy data)
+        classQuery = exam.class;
+        classDisplay = exam.class;
+      }
+
+      const totalStudents = await User.countDocuments({ role: 'student', class: classQuery });
       const completedStudents = await Result.countDocuments({ examId: exam._id });
-      
+
       return {
         id: exam._id,
         name: exam.title,
         date: exam.createdAt,
         status: exam.status,
         subject: exam.subject,
-        class: exam.class.name,
+        class: classDisplay,
         totalStudents,
         completedStudents
       };
@@ -181,16 +208,23 @@ const getStudentStats = async (req, res) => {
   try {
     const studentId = req.params.studentId;
     const student = await User.findById(studentId);
-    
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Student's class is used to find relevant exams
+    const studentClass = student.class;
+
     const [
       totalExams,
       completedExams,
       upcomingExams,
       averageScore
     ] = await Promise.all([
-      Exam.countDocuments({ class: student.class }),
+      Exam.countDocuments({ class: studentClass }),
       Result.countDocuments({ studentId, status: 'completed' }),
-      Exam.countDocuments({ class: student.class, status: 'scheduled' }),
+      Exam.countDocuments({ class: studentClass, status: 'scheduled' }),
       Result.aggregate([
         { $match: { studentId } },
         { $group: { _id: null, average: { $avg: '$marks' } } }
@@ -213,21 +247,38 @@ const getStudentRecentExams = async (req, res) => {
   try {
     const studentId = req.params.studentId;
     const student = await User.findById(studentId);
-    
+
+    if (!student) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    // Find exams for this student's class
     const recentExams = await Exam.find({ class: student.class })
       .sort({ createdAt: -1 })
       .limit(5)
+      .populate('class', 'name section')
       .lean();
 
     const examsWithResults = await Promise.all(recentExams.map(async exam => {
       const result = await Result.findOne({ examId: exam._id, studentId });
+
+      // Handle both string and ObjectId class references
+      let classInfo;
+      if (typeof exam.class === 'object' && exam.class !== null) {
+        // If class is populated as an object
+        classInfo = `${exam.class.name} ${exam.class.section || ''}`.trim();
+      } else {
+        // If class is still a string (legacy data)
+        classInfo = exam.class;
+      }
+
       return {
         id: exam._id,
         name: exam.title,
         date: exam.createdAt,
         status: exam.status,
         subject: exam.subject,
-        class: exam.class,
+        class: classInfo,
         marks: result?.marks || null,
         grade: result?.grade || null,
         feedback: result?.feedback || null
@@ -248,4 +299,4 @@ module.exports = {
   getTeacherRecentExams,
   getStudentStats,
   getStudentRecentExams
-}; 
+};

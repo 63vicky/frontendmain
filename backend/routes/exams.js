@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { auth, authorize } = require('../middleware/auth');
-const Exam = require('../models/Exam');
+const { authenticate, authorize } = require('../middleware/auth');
+const Exam = require('../models/Exam_updated');
 const Question = require('../models/Question');
 
 // Create new exam (Teacher only)
-router.post('/', auth, authorize('teacher'), async (req, res) => {
+router.post('/', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const exam = new Exam({
       ...req.body,
@@ -19,7 +19,7 @@ router.post('/', auth, authorize('teacher'), async (req, res) => {
 });
 
 // Get all exams (with filtering)
-router.get('/', auth, async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const { status, subject, class: studentClass } = req.query;
     const query = {};
@@ -31,7 +31,7 @@ router.get('/', auth, async (req, res) => {
     // If student, only show active exams for their class
     if (req.user.role === 'student') {
       query.status = 'active';
-      query.class = req.user.class;
+      query.class = req.user.class; // This will work with ObjectId comparison
     }
 
     // If teacher, only show their exams
@@ -42,7 +42,7 @@ router.get('/', auth, async (req, res) => {
     const exams = await Exam.find(query)
       .populate('createdBy', 'name email')
       .sort({ startDate: -1 });
-    
+
     res.json(exams);
   } catch (error) {
     res.status(500).json({ message: 'Error fetching exams', error: error.message });
@@ -50,7 +50,7 @@ router.get('/', auth, async (req, res) => {
 });
 
 // Get single exam
-router.get('/:id', auth, async (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const exam = await Exam.findById(req.params.id)
       .populate('createdBy', 'name email')
@@ -61,9 +61,18 @@ router.get('/:id', auth, async (req, res) => {
     }
 
     // Check if student has access to this exam
-    if (req.user.role === 'student' && 
-        (exam.status !== 'active' || exam.class !== req.user.class)) {
-      return res.status(403).json({ message: 'Access denied' });
+    if (req.user.role === 'student' && exam.status !== 'active') {
+      return res.status(403).json({ message: 'Access denied - exam not active' });
+    }
+
+    // Check if the exam's class matches the student's class
+    if (req.user.role === 'student') {
+      const examClassId = typeof exam.class === 'object' ? exam.class._id.toString() : exam.class.toString();
+      const studentClassId = req.user.class.toString();
+
+      if (examClassId !== studentClassId) {
+        return res.status(403).json({ message: 'Access denied - not in this class' });
+      }
     }
 
     res.json(exam);
@@ -73,7 +82,7 @@ router.get('/:id', auth, async (req, res) => {
 });
 
 // Update exam (Teacher only)
-router.put('/:id', auth, authorize('teacher'), async (req, res) => {
+router.put('/:id', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const exam = await Exam.findOneAndUpdate(
       { _id: req.params.id, createdBy: req.user._id },
@@ -92,7 +101,7 @@ router.put('/:id', auth, authorize('teacher'), async (req, res) => {
 });
 
 // Delete exam (Teacher only)
-router.delete('/:id', auth, authorize('teacher'), async (req, res) => {
+router.delete('/:id', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const exam = await Exam.findOneAndDelete({
       _id: req.params.id,
@@ -113,7 +122,7 @@ router.delete('/:id', auth, authorize('teacher'), async (req, res) => {
 });
 
 // Change exam status (Teacher only)
-router.patch('/:id/status', auth, authorize('teacher'), async (req, res) => {
+router.patch('/:id/status', authenticate, authorize('teacher'), async (req, res) => {
   try {
     const { status } = req.body;
     const exam = await Exam.findOneAndUpdate(
@@ -132,4 +141,4 @@ router.patch('/:id/status', auth, authorize('teacher'), async (req, res) => {
   }
 });
 
-module.exports = router; 
+module.exports = router;

@@ -7,6 +7,7 @@ import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import DashboardLayout from "@/components/dashboard-layout"
 import UserManagement from "@/components/user-management"
 import ExamManagement from "@/components/exam-management"
@@ -14,7 +15,7 @@ import { QuestionDialog } from "@/components/question-dialog"
 import { useSearchParams, useRouter } from "next/navigation"
 import { dashboardService } from "@/lib/services/dashboard"
 import { authService } from "@/lib/services/auth"
-import { DashboardStats, RecentExam, Exam } from "@/lib/types"
+import { DashboardStats, RecentExam, Exam, Class } from "@/lib/types"
 import { Loader2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { useToast } from "@/components/ui/use-toast"
@@ -43,7 +44,7 @@ function TeacherDashboardContent() {
     try {
       setLoading(true)
       setError(null)
-      
+
       const user = authService.getCurrentUser()
       if (!user || user.role !== "teacher") {
         router.push("/login")
@@ -87,6 +88,7 @@ function TeacherDashboardContent() {
   }
 
   const handleAddQuestion = (exam: Exam) => {
+    console.log("TeacherDashboard handleAddQuestion called for exam:", exam.title); // Debug log
     setSelectedExam(exam)
     setIsQuestionDialogOpen(true)
   }
@@ -95,9 +97,13 @@ function TeacherDashboardContent() {
     fetchDashboardData()
   }
 
-  const handleDialogClose = () => {
-    setIsQuestionDialogOpen(false)
-    setSelectedExam(null)
+  const handleDialogClose = (isOpen: boolean) => {
+    console.log("TeacherDashboard handleDialogClose called with isOpen:", isOpen); // Debug log
+
+    if (!isOpen) {
+      setIsQuestionDialogOpen(false)
+      setSelectedExam(null)
+    }
   }
 
   if (loading) {
@@ -192,9 +198,9 @@ function TeacherDashboardContent() {
                             <p className="text-sm text-muted-foreground">{exam.date}</p>
                           </div>
                           <span className={`text-sm ${
-                            exam.status === "Active" 
-                              ? "text-green-600" 
-                              : exam.status === "Completed" 
+                            exam.status === "Active"
+                              ? "text-green-600"
+                              : exam.status === "Completed"
                                 ? "text-blue-600"
                                 : "text-yellow-600"
                           }`}>
@@ -217,7 +223,7 @@ function TeacherDashboardContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {stats?.topStudents?.map((student, index) => (
+                    {stats?.topStudents?.map((student) => (
                       <div key={student.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center">
@@ -264,6 +270,7 @@ function TeacherDashboardContent() {
           open={isQuestionDialogOpen}
           onOpenChange={handleDialogClose}
           onSuccess={handleQuestionSuccess}
+          initialTab="existing"
         />
       </div>
     </DashboardLayout>
@@ -281,13 +288,48 @@ const CreateExamForm: React.FC = () => {
     endDate: "",
     attempts: 5,
   })
+  const [classes, setClasses] = useState<Class[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const router = useRouter()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
+  useEffect(() => {
+    // Fetch classes when component mounts
+    const fetchClasses = async () => {
+      try {
+        const response = await fetch(`${API_URL}/classes`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch classes');
+        }
+
+        const data = await response.json();
+        setClasses(data.data || []);
+      } catch (err) {
+        console.error('Error fetching classes:', err);
+        toast({
+          title: "Error",
+          description: "Failed to load classes. Please try again.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchClasses();
+  }, [API_URL, toast]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
     setFormData((prev) => ({ ...prev, [name]: value }))
   }
 
@@ -414,14 +456,22 @@ const CreateExamForm: React.FC = () => {
 
         <div className="space-y-2">
           <Label htmlFor="class">Class</Label>
-          <Input
-            id="class"
+          <Select
             name="class"
             value={formData.class}
-            onChange={handleChange}
-            placeholder="e.g., Class 8"
-            required
-          />
+            onValueChange={(value) => handleSelectChange("class", value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a class" />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map((cls) => (
+                <SelectItem key={cls._id} value={cls._id}>
+                  {cls.name} - {cls.section}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <div className="space-y-2">

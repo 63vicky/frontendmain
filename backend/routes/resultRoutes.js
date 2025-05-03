@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router();
 const { authenticate, authorize } = require('../middleware/auth');
-const { 
+const {
   getResults,
   getResultById,
   createResult,
   updateResult,
   deleteResult,
   getStudentResults,
-  getClassPerformance
+  getClassPerformance,
+  submitStudentResult
 } = require('../controllers/resultController');
 
 // Protected routes
@@ -20,4 +21,7 @@ router.post('/', authenticate, authorize(['teacher', 'principal']), createResult
 router.put('/:id', authenticate, authorize(['teacher', 'principal']), updateResult);
 router.delete('/:id', authenticate, authorize(['teacher', 'principal']), deleteResult);
 
-module.exports = router; 
+// Student-specific routes
+router.post('/student/submit', authenticate, authorize('student'), submitStudentResult);
+
+module.exports = router;

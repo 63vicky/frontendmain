@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
-const { auth, authorize } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
 const ExamAttempt = require('../models/ExamAttempt');
 const Exam = require('../models/Exam');
 const User = require('../models/User');
 
 // Get exam results summary
-router.get('/exam/:examId', auth, async (req, res) => {
+router.get('/exam/:examId', authenticate, async (req, res) => {
   try {
     const exam = await Exam.findById(req.params.examId);
 
@@ -15,12 +15,12 @@ router.get('/exam/:examId', auth, async (req, res) => {
     }
 
     // Check access permissions
-    if (req.user.role === 'student' && 
+    if (req.user.role === 'student' &&
         exam.class !== req.user.class) {
       return res.status(403).json({ message: 'Access denied' });
     }
 
-    if (req.user.role === 'teacher' && 
+    if (req.user.role === 'teacher' &&
         exam.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -37,12 +37,12 @@ router.get('/exam/:examId', auth, async (req, res) => {
 
     const totalAttempts = attempts.length;
     const completedAttempts = attempts.filter(a => a.status === 'completed').length;
-    
+
     const scores = attempts.map(a => a.score);
-    const avgScore = scores.length > 0 
-      ? scores.reduce((a, b) => a + b, 0) / scores.length 
+    const avgScore = scores.length > 0
+      ? scores.reduce((a, b) => a + b, 0) / scores.length
       : 0;
-    
+
     const highestScore = Math.max(...scores, 0);
     const lowestScore = Math.min(...scores, 0);
 
@@ -76,12 +76,12 @@ router.get('/exam/:examId', auth, async (req, res) => {
 });
 
 // Get student's results for all exams
-router.get('/student/:studentId', auth, async (req, res) => {
+router.get('/student/:studentId', authenticate, async (req, res) => {
   try {
     const studentId = req.params.studentId;
 
     // Check access permissions
-    if (req.user.role === 'student' && 
+    if (req.user.role === 'student' &&
         req.user._id.toString() !== studentId) {
       return res.status(403).json({ message: 'Access denied' });
     }
@@ -131,7 +131,7 @@ router.get('/student/:studentId', auth, async (req, res) => {
 });
 
 // Get class performance analytics
-router.get('/class/:classId', auth, authorize(['teacher', 'principal']), async (req, res) => {
+router.get('/class/:classId', authenticate, authorize(['teacher', 'principal']), async (req, res) => {
   try {
     const { classId } = req.params;
     const { subject, startDate, endDate } = req.query;
@@ -202,13 +202,13 @@ router.get('/class/:classId', auth, authorize(['teacher', 'principal']), async (
 
     // Calculate overall averages
     const totalScores = attempts.map(a => a.score);
-    performance.avgScore = totalScores.length > 0 
-      ? totalScores.reduce((a, b) => a + b, 0) / totalScores.length 
+    performance.avgScore = totalScores.length > 0
+      ? totalScores.reduce((a, b) => a + b, 0) / totalScores.length
       : 0;
 
     const passCount = attempts.filter(a => a.percentage >= 60).length;
-    performance.passRate = attempts.length > 0 
-      ? (passCount / attempts.length) * 100 
+    performance.passRate = attempts.length > 0
+      ? (passCount / attempts.length) * 100
       : 0;
 
     res.json(performance);
@@ -217,4 +217,4 @@ router.get('/class/:classId', auth, authorize(['teacher', 'principal']), async (
   }
 });
 
-module.exports = router; 
+module.exports = router;

@@ -17,11 +17,11 @@ const examAttemptSchema = new mongoose.Schema({
   },
   endTime: {
     type: Date,
-    required: true
+    // Not required when creating a new attempt, only when completing
+    required: false
   },
   score: {
     type: Number,
-    required: true,
     default: 0
   },
   maxScore: {
@@ -30,32 +30,83 @@ const examAttemptSchema = new mongoose.Schema({
   },
   percentage: {
     type: Number,
-    required: true
+    // Not required when creating a new attempt, only when completing
+    required: false
   },
   rating: {
     type: String,
     enum: ['Excellent', 'Good', 'Satisfactory', 'Needs Improvement'],
-    required: true
+    // Not required when creating a new attempt, only when completing
+    required: false
   },
-  answers: [{
-    questionId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Question',
-      required: true
-    },
-    selectedOption: {
-      type: String,
-      required: true
-    },
-    isCorrect: {
-      type: Boolean,
-      required: true
-    }
-  }],
+  answers: {
+    type: [{
+      questionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Question',
+        required: true
+      },
+      selectedOption: {
+        type: String,
+        required: true
+      },
+      isCorrect: {
+        type: Boolean,
+        required: true
+      },
+      timeSpent: {
+        type: Number, // Time spent in seconds
+        default: 0
+      },
+      points: {
+        type: Number,
+        default: 0
+      }
+    }],
+    default: [] // Default to empty array when creating a new attempt
+  },
+  questionTimings: {
+    type: [{
+      questionId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Question'
+      },
+      startTime: Date,
+      endTime: Date,
+      timeSpent: Number // Time spent in seconds
+    }],
+    default: [] // Default to empty array when creating a new attempt
+  },
+  categoryBreakdown: {
+    type: [{
+      category: String,
+      correct: Number,
+      total: Number,
+      percentage: Number
+    }],
+    default: [] // Default to empty array when creating a new attempt
+  },
+  classRank: {
+    rank: Number,
+    totalStudents: Number,
+    percentile: Number
+  },
+  timeSpent: {
+    type: Number, // Total time spent in seconds
+    default: 0
+  },
   status: {
     type: String,
     enum: ['in_progress', 'completed', 'abandoned'],
     default: 'in_progress'
+  },
+  feedback: {
+    text: String,
+    teacherId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    createdAt: Date
   }
 }, {
   timestamps: true
@@ -65,4 +116,4 @@ const examAttemptSchema = new mongoose.Schema({
 examAttemptSchema.index({ examId: 1, studentId: 1 });
 examAttemptSchema.index({ studentId: 1, startTime: -1 });
 
-module.exports = mongoose.model('ExamAttempt', examAttemptSchema); 
+module.exports = mongoose.model('ExamAttempt', examAttemptSchema);

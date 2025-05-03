@@ -37,7 +37,9 @@ interface ApiResponse<T> {
 // Create a fetch-based API client that mimics axios interface
 const apiClient = {
   async request<T>(config: { url: string; method?: string; data?: any; headers?: Record<string, string> }): Promise<ApiResponse<T>> {
-    const { url, method = 'GET', data, headers = {} } = config;
+    const { url, method = 'GET', data, headers = {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    } } = config;
 
     try {
       const response = await fetch(`${API_URL}${url}`, {
@@ -242,7 +244,10 @@ export const api = {
         });
       }
       const response = await fetch(`${API_URL}/questions?${queryParams}`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       if (!response.ok) throw new Error('Failed to fetch questions');
       return response.json();
@@ -250,7 +255,10 @@ export const api = {
 
     getById: async (id: string) => {
       const response = await fetch(`${API_URL}/questions/${id}`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       if (!response.ok) throw new Error('Failed to fetch question');
       return response.json();
@@ -271,7 +279,9 @@ export const api = {
     }) => {
       const response = await fetch(`${API_URL}/questions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+         },
         credentials: 'include',
         body: JSON.stringify(questionData)
       });
@@ -295,7 +305,9 @@ export const api = {
     }) => {
       const response = await fetch(`${API_URL}/questions/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+         },
         credentials: 'include',
         body: JSON.stringify(questionData)
       });
@@ -306,7 +318,10 @@ export const api = {
     delete: async (id: string) => {
       const response = await fetch(`${API_URL}/questions/${id}`, {
         method: 'DELETE',
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       const data = await response.json();
       if (!response.ok) {
@@ -318,7 +333,9 @@ export const api = {
     addToExam: async (id: string, examId: string) => {
       const response = await fetch(`${API_URL}/questions/${id}/add-to-exam`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         credentials: 'include',
         body: JSON.stringify({ examId })
       });
@@ -329,7 +346,9 @@ export const api = {
     removeFromExam: async (id: string, examId: string) => {
       const response = await fetch(`${API_URL}/questions/${id}/remove-from-exam`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
         credentials: 'include',
         body: JSON.stringify({ examId })
       });
@@ -339,7 +358,10 @@ export const api = {
 
     getSubjects: async () => {
       const response = await fetch(`${API_URL}/questions/subjects`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       if (!response.ok) throw new Error('Failed to fetch subjects');
       return response.json();
@@ -347,7 +369,10 @@ export const api = {
 
     getClasses: async () => {
       const response = await fetch(`${API_URL}/questions/classes`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       if (!response.ok) throw new Error('Failed to fetch classes');
       return response.json();
@@ -355,7 +380,10 @@ export const api = {
 
     getChapters: async (subject: string) => {
       const response = await fetch(`${API_URL}/questions/chapters/${subject}`, {
-        credentials: 'include'
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
       });
       if (!response.ok) throw new Error('Failed to fetch chapters');
       return response.json();
@@ -688,6 +716,108 @@ export const getExamAnalytics = async (classFilter?: string, subjectFilter?: str
   );
   if (!response.ok) throw new Error('Failed to fetch exam analytics');
   return response.json();
+};
+
+// Bulk Upload APIs
+export const bulkUploadApi = {
+  // Get all bulk uploads
+  getAllUploads: async (type?: string) => {
+    const url = type
+      ? `${API_URL}/bulk-uploads?type=${type}`
+      : `${API_URL}/bulk-uploads`;
+    const response = await fetch(url, {
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to fetch bulk uploads');
+    return response.json();
+  },
+
+  // Get bulk upload by ID
+  getUploadById: async (id: string) => {
+    const response = await fetch(`${API_URL}/bulk-uploads/${id}`, {
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to fetch bulk upload');
+    return response.json();
+  },
+
+  // Get uploaded records for a specific bulk upload
+  getUploadedRecords: async (id: string) => {
+    const response = await fetch(`${API_URL}/bulk-uploads/${id}/records`, {
+      credentials: 'include'
+    });
+    if (!response.ok) throw new Error('Failed to fetch uploaded records');
+    return response.json();
+  },
+
+  // Upload students in bulk
+  uploadStudents: async (formData: FormData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/bulk-uploads/students`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to upload students');
+    }
+    return response.json();
+  },
+
+  // Upload teachers in bulk
+  uploadTeachers: async (formData: FormData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/bulk-uploads/teachers`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to upload teachers');
+    }
+    return response.json();
+  },
+
+  // Upload questions in bulk
+  uploadQuestions: async (formData: FormData) => {
+    const token = localStorage.getItem('token');
+    const response = await fetch(`${API_URL}/bulk-uploads/questions`, {
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || 'Failed to upload questions');
+    }
+    return response.json();
+  },
+
+  // Download student template
+  downloadStudentTemplate: () => {
+    window.open(`${API_URL}/bulk-uploads/templates/students`, '_blank');
+  },
+
+  // Download teacher template
+  downloadTeacherTemplate: () => {
+    window.open(`${API_URL}/bulk-uploads/templates/teachers`, '_blank');
+  },
+
+  // Download question template
+  downloadQuestionTemplate: () => {
+    window.open(`${API_URL}/bulk-uploads/templates/questions`, '_blank');
+  }
 };
 
 export default api;

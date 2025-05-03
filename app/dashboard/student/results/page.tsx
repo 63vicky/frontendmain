@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,79 +8,141 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import DashboardLayout from "@/components/dashboard-layout"
-import { Download, Eye, BarChart2, Clock } from "lucide-react"
+import { Download, Eye, BarChart2, Clock, Loader2, AlertTriangle } from "lucide-react"
+import { resultService } from "@/lib/services/result-service"
+import { authService } from "@/lib/services/auth"
+import { useToast } from "@/hooks/use-toast"
+import { Result } from "@/lib/types"
+
+// Extended result interface for our UI needs
+interface ExtendedResult {
+  _id: string;
+  exam: string;
+  subject: string;
+  date: string;
+  score: number;
+  totalMarks: number;
+  attempts: number;
+  maxAttempts: number;
+  rating: string;
+  status: string;
+  timeSpent: string;
+}
 
 export default function StudentResults() {
   const [selectedSubject, setSelectedSubject] = useState("all")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [examResults, setExamResults] = useState<ExtendedResult[]>([])
+  const { toast } = useToast()
 
-  // Mock data for student's exam results
-  const examResults = [
-    {
-      id: 1,
-      exam: "Mathematics - Chapter 3",
-      subject: "Mathematics",
-      date: "Apr 25, 2025",
-      score: 85,
-      totalMarks: 100,
-      attempts: 1,
-      maxAttempts: 5,
-      rating: "Good",
-      status: "Completed",
-      timeSpent: "45:30",
-    },
-    {
-      id: 2,
-      exam: "Science - Quiz 4",
-      subject: "Science",
-      date: "Apr 28, 2025",
-      score: 92,
-      totalMarks: 100,
-      attempts: 2,
-      maxAttempts: 5,
-      rating: "Excellent",
-      status: "Completed",
-      timeSpent: "52:15",
-    },
-    {
-      id: 3,
-      exam: "English - Grammar Test",
-      subject: "English",
-      date: "May 5, 2025",
-      score: 78,
-      totalMarks: 100,
-      attempts: 1,
-      maxAttempts: 5,
-      rating: "Good",
-      status: "Completed",
-      timeSpent: "38:45",
-    },
-    {
-      id: 4,
-      exam: "History - Chapter 4",
-      subject: "History",
-      date: "Apr 20, 2025",
-      score: 65,
-      totalMarks: 100,
-      attempts: 3,
-      maxAttempts: 5,
-      rating: "Satisfactory",
-      status: "Completed",
-      timeSpent: "55:20",
-    },
-    {
-      id: 5,
-      exam: "Mathematics - Final Exam",
-      subject: "Mathematics",
-      date: "Apr 15, 2025",
-      score: 90,
-      totalMarks: 100,
-      attempts: 1,
-      maxAttempts: 5,
-      rating: "Excellent",
-      status: "Completed",
-      timeSpent: "58:10",
-    },
-  ]
+  useEffect(() => {
+    const fetchResults = async () => {
+      try {
+        setLoading(true)
+        const user = authService.getCurrentUser()
+
+        if (!user || user.role !== "student") {
+          toast({
+            title: "Error",
+            description: "You must be logged in as a student to view this page",
+            variant: "destructive"
+          })
+          return
+        }
+
+        // Fetch student results
+        const results = await resultService.getStudentResults(user._id)
+
+        // Transform the API results to our UI format
+        const transformedResults: ExtendedResult[] = results.map(result => {
+          // Calculate rating based on score
+          const score = result.score || result.marks || 0
+          let rating = result.rating || "Needs Improvement"
+          if (!result.rating) {
+            if (score >= 90) rating = "Excellent"
+            else if (score >= 75) rating = "Good"
+            else if (score >= 60) rating = "Satisfactory"
+          }
+
+          // Format date
+          const date = result.submittedAt || result.endTime || result.createdAt
+          const formattedDate = date ? new Date(date).toLocaleDateString() : "N/A"
+
+          // Get exam details
+          const examTitle = typeof result.examId === 'string'
+            ? "Exam"
+            : (result.examId as any)?.title || "Exam"
+
+          const examSubject = typeof result.examId === 'string'
+            ? "Subject"
+            : (result.examId as any)?.subject || "Subject"
+
+          const maxAttempts = typeof result.examId === 'string'
+            ? 1
+            : (result.examId as any)?.attempts?.max || 1
+
+          // Calculate time spent
+          let timeSpent = "N/A"
+          if (result.timeSpent) {
+            // If timeSpent is in seconds, convert to minutes:seconds format
+            const minutes = Math.floor(result.timeSpent / 60)
+            const seconds = result.timeSpent % 60
+            timeSpent = `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`
+          } else if (result.startedAt && result.submittedAt) {
+            // Calculate from timestamps
+            const start = new Date(result.startedAt).getTime()
+            const end = new Date(result.submittedAt).getTime()
+            const diffMs = end - start
+            const diffMinutes = Math.floor(diffMs / 60000)
+            const diffSeconds = Math.floor((diffMs % 60000) / 1000)
+            timeSpent = `${diffMinutes}:${diffSeconds < 10 ? '0' + diffSeconds : diffSeconds}`
+          } else if (result.startTime && result.endTime) {
+            // Calculate from timestamps (ExamAttempt format)
+            const start = new Date(result.startTime).getTime()
+            const end = new Date(result.endTime).getTime()
+            const diffMs = end - start
+            const diffMinutes = Math.floor(diffMs / 60000)
+            const diffSeconds = Math.floor((diffMs % 60000) / 1000)
+            timeSpent = `${diffMinutes}:${diffSeconds < 10 ? '0' + diffSeconds : diffSeconds}`
+          }
+
+          // Calculate total marks
+          const totalMarks = result.answers && result.answers.length > 0
+            ? result.answers.reduce((sum, a) => sum + (a.points || 10), 0)
+            : 100 // Default to 100 if no answers available
+
+          return {
+            _id: result._id,
+            exam: examTitle,
+            subject: examSubject,
+            date: formattedDate,
+            score: score,
+            totalMarks: totalMarks,
+            attempts: result.attemptNumber || 1,
+            maxAttempts: maxAttempts,
+            rating: rating,
+            status: result.status || "Completed",
+            timeSpent: timeSpent
+          }
+        })
+
+        setExamResults(transformedResults)
+        setLoading(false)
+      } catch (error) {
+        console.error("Error fetching results:", error)
+        setError("Failed to load results. Please try again later.")
+        setLoading(false)
+        toast({
+          title: "Error",
+          description: "Failed to load results. Please try again later.",
+          variant: "destructive"
+        })
+      }
+    }
+
+    fetchResults()
+  }, [toast])
 
   // Filter results based on selected subject
   const filteredResults =
@@ -90,7 +152,9 @@ export default function StudentResults() {
   const subjects = Array.from(new Set(examResults.map((result) => result.subject)))
 
   // Calculate overall performance
-  const averageScore = Math.round(examResults.reduce((sum, result) => sum + result.score, 0) / examResults.length)
+  const averageScore = examResults.length > 0
+    ? Math.round(examResults.reduce((sum, result) => sum + result.score, 0) / examResults.length)
+    : 0
 
   // Get rating color
   const getRatingColor = (rating: string) => {
@@ -142,86 +206,111 @@ export default function StudentResults() {
                 <CardDescription>View your performance in all exams</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="flex justify-end mb-4">
-                  <select
-                    value={selectedSubject}
-                    onChange={(e) => setSelectedSubject(e.target.value)}
-                    className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="all">All Subjects</option>
-                    {subjects.map((subject) => (
-                      <option key={subject} value={subject}>
-                        {subject}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                {loading ? (
+                  <div className="flex justify-center items-center h-64">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                    <span className="ml-2">Loading results...</span>
+                  </div>
+                ) : error ? (
+                  <div className="p-6 text-center">
+                    <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md">
+                      <p className="flex items-center">
+                        <AlertTriangle className="h-5 w-5 mr-2" />
+                        {error}
+                      </p>
+                      <Button
+                        variant="outline"
+                        className="mt-2"
+                        onClick={() => window.location.reload()}
+                      >
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex justify-end mb-4">
+                      <select
+                        value={selectedSubject}
+                        onChange={(e) => setSelectedSubject(e.target.value)}
+                        className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <option value="all">All Subjects</option>
+                        {subjects.map((subject) => (
+                          <option key={subject} value={subject}>
+                            {subject}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Exam</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Rating</TableHead>
-                      <TableHead>Attempts</TableHead>
-                      <TableHead>Time Spent</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredResults.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                          No results found
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredResults.map((result) => (
-                        <TableRow key={result.id}>
-                          <TableCell className="font-medium">{result.exam}</TableCell>
-                          <TableCell>{result.subject}</TableCell>
-                          <TableCell>{result.date}</TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium">
-                                {result.score}/{result.totalMarks}
-                              </span>
-                              <span className="text-sm text-muted-foreground">
-                                ({Math.round((result.score / result.totalMarks) * 100)}%)
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Badge className={getRatingColor(result.rating)}>{result.rating}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            {result.attempts}/{result.maxAttempts}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex items-center">
-                              <Clock className="h-3 w-3 mr-1 text-slate-500" />
-                              <span>{result.timeSpent}</span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm" asChild>
-                              <Link
-                                href={`/result/${result.id}?score=${Math.round((result.score / result.totalMarks) * 100)}&correct=${result.score / 10}&total=${result.totalMarks / 10}`}
-                              >
-                                <Eye className="h-4 w-4 text-indigo-500" />
-                              </Link>
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Download className="h-4 w-4 text-indigo-500" />
-                            </Button>
-                          </TableCell>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Exam</TableHead>
+                          <TableHead>Subject</TableHead>
+                          <TableHead>Date</TableHead>
+                          <TableHead>Score</TableHead>
+                          <TableHead>Rating</TableHead>
+                          <TableHead>Attempts</TableHead>
+                          <TableHead>Time Spent</TableHead>
+                          <TableHead className="text-right">Actions</TableHead>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {filteredResults.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                              No results found
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          filteredResults.map((result) => (
+                            <TableRow key={result._id}>
+                              <TableCell className="font-medium">{result.exam}</TableCell>
+                              <TableCell>{result.subject}</TableCell>
+                              <TableCell>{result.date}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium">
+                                    {result.score}/{result.totalMarks}
+                                  </span>
+                                  <span className="text-sm text-muted-foreground">
+                                    ({Math.round((result.score / result.totalMarks) * 100)}%)
+                                  </span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={getRatingColor(result.rating)}>{result.rating}</Badge>
+                              </TableCell>
+                              <TableCell>
+                                {result.attempts}/{result.maxAttempts}
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center">
+                                  <Clock className="h-3 w-3 mr-1 text-slate-500" />
+                                  <span>{result.timeSpent}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button variant="ghost" size="sm" asChild>
+                                  <Link
+                                    href={`/result/${result._id}?score=${Math.round((result.score / result.totalMarks) * 100)}&correct=${result.score / 10}&total=${result.totalMarks / 10}`}
+                                  >
+                                    <Eye className="h-4 w-4 text-indigo-500" />
+                                  </Link>
+                                </Button>
+                                <Button variant="ghost" size="sm">
+                                  <Download className="h-4 w-4 text-indigo-500" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,9 +16,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Clock, AlertCircle, CheckCircle, XCircle, HelpCircle, Loader2 } from "lucide-react"
+import { Clock, AlertCircle, CheckCircle, XCircle, HelpCircle, Loader2, AlertTriangle } from "lucide-react"
 import { api } from "@/lib/api"
 import { authService } from "@/lib/services/auth"
+import { resultService } from "@/lib/services/result-service"
 import { useToast } from "@/hooks/use-toast"
 import { Exam, Question } from "@/lib/types"
 
@@ -46,6 +45,10 @@ const defaultExam = {
 }
 
 export default function ExamPage({ params }: { params: { id: string } }) {
+  // Unwrap params using React.use() to handle the Promise
+  const resolvedParams = React.use(params)
+  const examId = resolvedParams.id
+
   const router = useRouter()
   const { toast } = useToast()
   const [currentQuestion, setCurrentQuestion] = useState(0)
@@ -64,6 +67,13 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   const [exam, setExam] = useState<Exam | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [questionTimings, setQuestionTimings] = useState<Array<{
+    questionId: string;
+    startTime: Date;
+    endTime?: Date;
+    timeSpent?: number;
+  }>>([])
+  const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<Date | null>(null)
 
   // Use refs to track timer intervals to prevent double invocation
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -87,17 +97,20 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         }
 
         // Fetch exam details
-        const examResponse = await api.get<Exam>(`/exams/${params.id}`)
+        const examResponse = await api.get<Exam>(`/exams/${examId}`)
         if (!examResponse.data) {
           throw new Error("Exam not found")
         }
 
-        const examData = examResponse.data
+        const examData = examResponse.data.data
 
         // Check if exam is available
         const now = new Date()
         const startDate = new Date(examData.startDate)
         const endDate = new Date(examData.endDate)
+
+        console.log("Exam status:", examData.status);
+
 
         if (examData.status !== "active" || now < startDate || now > endDate) {
           toast({
@@ -110,14 +123,25 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         }
 
         // Check if student has reached maximum attempts
-        if (examData.attempts && examData.attempts.current >= examData.attempts.max) {
-          toast({
-            title: "Maximum Attempts Reached",
-            description: `You have already used all ${examData.attempts.max} attempts for this exam`,
-            variant: "destructive"
-          })
-          router.push("/dashboard/student?tab=exams")
-          return
+        // We need to fetch the student's attempts for this exam
+        try {
+          const attemptsResponse = await api.get<any[]>(`/attempts/exam/${examId}`);
+          const studentAttempts = attemptsResponse.data || [];
+
+          console.log(`Student has ${studentAttempts.length} attempts for exam ${examId}`);
+
+          if (examData.attempts && studentAttempts.length >= examData.attempts.max) {
+            toast({
+              title: "Maximum Attempts Reached",
+              description: `You have already used all ${examData.attempts.max} attempts for this exam`,
+              variant: "destructive"
+            })
+            router.push("/dashboard/student?tab=exams")
+            return
+          }
+        } catch (attemptsError) {
+          console.error("Error fetching student attempts:", attemptsError);
+          // Continue without checking attempts - the backend will enforce the limit
         }
 
         setExam(examData)
@@ -135,7 +159,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     }
 
     fetchExam()
-  }, [params.id, router, toast])
+  }, [examId, router, toast])
 
   // Calculate total exam time based on per-question timers or use the exam duration
   const calculateTotalExamTime = () => {
@@ -225,6 +249,27 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     setQuestionTime(newTime)
     setTimeLeft(newTime)
 
+    // Record the start time for the current question
+    const now = new Date()
+    setCurrentQuestionStartTime(now)
+
+    // Add this question to the timings array if it doesn't exist yet
+    if (exam.questions[currentQuestion] && exam.questions[currentQuestion]._id) {
+      const questionId = exam.questions[currentQuestion]._id
+      setQuestionTimings(prev => {
+        // Check if we already have a timing for this question
+        const existingIndex = prev.findIndex(t => t.questionId === questionId)
+        if (existingIndex === -1) {
+          // Add new timing
+          return [...prev, {
+            questionId,
+            startTime: now
+          }]
+        }
+        return prev
+      })
+    }
+
     // Clear any existing timer
     if (questionTimerRef.current) {
       clearInterval(questionTimerRef.current)
@@ -280,6 +325,26 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     if (!exam || !exam.questions) return;
 
     if (currentQuestion < exam.questions.length - 1) {
+      // Record end time for current question
+      if (currentQuestionStartTime && exam.questions[currentQuestion]._id) {
+        const now = new Date();
+        const questionId = exam.questions[currentQuestion]._id;
+        const timeSpent = Math.floor((now.getTime() - currentQuestionStartTime.getTime()) / 1000);
+
+        setQuestionTimings(prev => {
+          return prev.map(timing => {
+            if (timing.questionId === questionId) {
+              return {
+                ...timing,
+                endTime: now,
+                timeSpent
+              };
+            }
+            return timing;
+          });
+        });
+      }
+
       // Mark current question as visited/locked
       setVisitedQuestions((prev) => {
         const updated = new Set(prev)
@@ -315,71 +380,188 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     setIsSubmitting(true)
 
     try {
-      // Calculate score (for client-side display only)
+      // Calculate score for client-side tracking
       let score = 0
       let totalAnswered = 0
-      const totalPoints = exam.questions.length * 10;
 
-      Object.entries(answers).forEach(([questionIndex, answer]) => {
-        totalAnswered++
-        const question = exam.questions[Number.parseInt(questionIndex)]
-        if (question.correctAnswer === answer) {
+      // Format answers for submission
+      const formattedAnswers = Object.entries(answers).map(([questionIndex, answer]) => {
+        // We already checked that exam.questions exists at the beginning of the function
+        const question = exam.questions![Number.parseInt(questionIndex)]
+        const questionId = question._id
+
+        // Check if the answer is correct based on question type
+        let isCorrect = false
+        if (question.type === "multiple-choice") {
+          // For multiple choice, compare with correctAnswer which could be a string or array
+          if (Array.isArray(question.correctAnswer)) {
+            isCorrect = question.correctAnswer.includes(answer)
+          } else {
+            isCorrect = question.correctAnswer === answer
+          }
+        } else if (question.type === "true-false") {
+          // For true/false, direct comparison works
+          isCorrect = question.correctAnswer === answer
+        } else if (question.type === "short-answer") {
+          // For short answers, do case-insensitive comparison
+          isCorrect = String(question.correctAnswer).toLowerCase() === String(answer).toLowerCase()
+        } else if (question.type === "fill-in-blank") {
+          // For fill-in-blank, do case-insensitive comparison
+          isCorrect = String(question.correctAnswer).toLowerCase() === String(answer).toLowerCase()
+        } else {
+          // For descriptive questions or any other types, we'll let the backend handle scoring
+          // as it might require manual grading or more complex evaluation
+          isCorrect = false // Default to false, will be evaluated by teacher
+        }
+
+        // Add to score if correct
+        if (isCorrect) {
           score += question.points || 10
+        }
+
+        totalAnswered++
+
+        return {
+          questionId,
+          answer: answer, // Changed from selectedOption to answer to match the expected type
+          isCorrect
         }
       })
 
-      const percentage = Math.round((score / totalPoints) * 100)
+      // Calculate percentage
+      const totalPoints = exam.questions.reduce((total, question) => total + (question.points || 10), 0);
+      const percentage = Math.round((score / totalPoints) * 100);
 
-      // Determine rating based on percentage
-      let rating = "Needs Improvement"
-      if (percentage >= 90) rating = "Excellent"
-      else if (percentage >= 75) rating = "Good"
-      else if (percentage >= 60) rating = "Satisfactory"
+      // Record end time for the last question
+      if (currentQuestionStartTime && exam.questions[currentQuestion]._id) {
+        const now = new Date();
+        const questionId = exam.questions[currentQuestion]._id;
+        const timeSpent = Math.floor((now.getTime() - currentQuestionStartTime.getTime()) / 1000);
 
-      // Send the exam submission to the backend
-      const submissionData = {
-        examId: params.id,
-        answers,
-        timeSpent: calculateTotalExamTime() - totalTimeLeft,
+        setQuestionTimings(prev => {
+          return prev.map(timing => {
+            if (timing.questionId === questionId) {
+              return {
+                ...timing,
+                endTime: now,
+                timeSpent
+              };
+            }
+            return timing;
+          });
+        });
       }
 
-      const response = await api.post('/results', submissionData)
-
-      if (response.data) {
-        // Update exam attempts count
-        if (exam.attempts) {
-          await api.put(`/exams/${params.id}/attempts`, {
-            attempts: {
-              current: (exam.attempts.current || 0) + 1,
-              max: exam.attempts.max
-            }
-          })
+      // Finalize question timings
+      const finalQuestionTimings = questionTimings.map(timing => {
+        // If a question doesn't have an end time, set it to now
+        if (!timing.endTime) {
+          const now = new Date();
+          const timeSpent = Math.floor((now.getTime() - timing.startTime.getTime()) / 1000);
+          return {
+            ...timing,
+            endTime: now,
+            timeSpent
+          };
         }
+        return timing;
+      });
 
+      // Prepare submission data for the backend
+      const submissionData = {
+        examId: examId,
+        answers: formattedAnswers,
+        score: percentage, // Send percentage as score
+        timeSpent: calculateTotalExamTime() - totalTimeLeft,
+        questionTimings: finalQuestionTimings
+      };
+
+      // Submit to the student-specific endpoint using the result service
+      const result = await resultService.submitStudentResult(submissionData)
+
+      if (result) {
         // Redirect to results page
         setTimeout(() => {
-          router.push(`/result/${response.data._id}`)
+          router.push(`/result/${result._id}`)
         }, 1000)
       } else {
         throw new Error("Failed to submit exam")
       }
     } catch (error) {
       console.error("Error submitting exam:", error)
-      toast({
-        title: "Error",
-        description: "Failed to submit exam. Please try again.",
-        variant: "destructive"
-      })
+
+      // Check if the error indicates the exam has reached maximum attempts
+      if (error instanceof Error && error.message.includes("Maximum attempts reached")) {
+        toast({
+          title: "Maximum Attempts Reached",
+          description: "You have already used all available attempts for this exam. Redirecting to your best result.",
+          variant: "default"
+        })
+
+        // Check if we have a result object from the error (it might be in the error object)
+        const errorObj = error as any;
+        if (errorObj.existingResults && errorObj.existingResults.length > 0) {
+          // Find the best result (highest score)
+          const bestResult = errorObj.existingResults.reduce(
+            (best: any, current: any) => current.marks > best.marks ? current : best,
+            errorObj.existingResults[0]
+          );
+
+          // Redirect to the specific result page
+          setTimeout(() => {
+            router.push(`/result/${bestResult._id}`)
+          }, 1000)
+        } else {
+          // Fallback to the results tab if we don't have a specific result ID
+          setTimeout(() => {
+            router.push("/dashboard/student?tab=results")
+          }, 2000)
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to submit exam. Please try again.",
+          variant: "destructive"
+        })
+      }
+
       setIsSubmitting(false)
     }
   }
 
-  const startExam = () => {
-    setExamStarted(true)
-    setShowInstructions(false)
+  const startExam = async () => {
+    try {
+      // Create a new attempt in the backend
+      const response = await api.post('/attempts', { examId });
+      console.log('Created new attempt:', response.data);
 
-    // Start the total exam timer
-    setTotalTimeLeft(calculateTotalExamTime())
+      // Start the exam UI
+      setExamStarted(true);
+      setShowInstructions(false);
+
+      // Start the total exam timer
+      setTotalTimeLeft(calculateTotalExamTime());
+    } catch (error: any) {
+      console.error('Error starting exam:', error);
+
+      // Check if the error is due to maximum attempts reached
+      if (error.response && error.response.data && error.response.data.message === 'Maximum attempts reached') {
+        toast({
+          title: "Maximum Attempts Reached",
+          description: `You have already used all ${exam?.attempts?.max || 1} attempts for this exam`,
+          variant: "destructive"
+        });
+        router.push("/dashboard/student?tab=exams");
+        return;
+      }
+
+      // Handle other errors
+      toast({
+        title: "Error",
+        description: "Failed to start exam. Please try again.",
+        variant: "destructive"
+      });
+    }
   }
 
   // Get current question or use a placeholder if exam is not loaded
@@ -391,6 +573,8 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   const progress = exam && exam.questions
     ? ((currentQuestion + 1) / exam.questions.length) * 100
     : 0
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
@@ -441,7 +625,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                   <div>
                     <CardTitle className="text-2xl">{exam?.title || "Exam"}</CardTitle>
                     <CardDescription className="text-indigo-200">
-                      {exam?.subject || "Subject"} | Class {exam?.class || ""}
+                      {exam?.subject || "Subject"} | Class {typeof exam?.class === 'object' ?
+                        `${exam.class.name} ${exam.class.section || ''}`.trim() :
+                        exam?.class || ""}
                     </CardDescription>
                   </div>
                 </div>
@@ -469,7 +655,8 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       <li>Questions will be randomized to prevent cheating.</li>
                       <li>
                         <strong>You can attempt this exam up to {exam?.attempts?.max || 1} times.</strong>
-                        This is attempt {(exam?.attempts?.current || 0) + 1} of {exam?.attempts?.max || 1}.
+                        {/* We don't use exam.attempts.current anymore since it's a global counter */}
+                        {/* Instead, we'll rely on the backend to enforce the limit */}
                       </li>
                       <li>Your highest score from all attempts will be considered for your final grade.</li>
                     </ul>
@@ -484,7 +671,11 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Class</p>
-                        <p className="font-medium">{exam?.class || "N/A"}</p>
+                        <p className="font-medium">
+                          {typeof exam?.class === 'object' ?
+                            `${exam.class.name} ${exam.class.section || ''}`.trim() :
+                            exam?.class || "N/A"}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-indigo-600">Total Time</p>
@@ -540,7 +731,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                   <div>
                     <CardTitle>{exam?.title || "Exam"}</CardTitle>
                     <CardDescription className="text-indigo-200">
-                      {exam?.subject || "Subject"} | Class {exam?.class || ""} | Question {currentQuestion + 1} of{" "}
+                      {exam?.subject || "Subject"} | Class {typeof exam?.class === 'object' ?
+                        `${exam.class.name} ${exam.class.section || ''}`.trim() :
+                        exam?.class || ""} | Question {currentQuestion + 1} of{" "}
                       {exam?.questions?.length || 0}
                     </CardDescription>
                   </div>
@@ -575,40 +768,83 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     <Badge
                       variant="outline"
                       className={
-                        question.type === "MCQ"
+                        question.type === "multiple-choice"
                           ? "border-blue-500 text-blue-700 bg-blue-50"
-                          : question.type === "Fill-up"
+                          : question.type === "short-answer"
                             ? "border-purple-500 text-purple-700 bg-purple-50"
-                            : "border-green-500 text-green-700 bg-green-50"
+                            : question.type === "descriptive"
+                              ? "border-indigo-500 text-indigo-700 bg-indigo-50"
+                              : question.type === "fill-in-blank"
+                                ? "border-amber-500 text-amber-700 bg-amber-50"
+                                : "border-green-500 text-green-700 bg-green-50"
                       }
                     >
-                      {question.type}
+                      {question.type === "multiple-choice" ? "Multiple Choice" :
+                       question.type === "short-answer" ? "Short Answer" :
+                       question.type === "descriptive" ? "Descriptive" :
+                       question.type === "fill-in-blank" ? "Fill in the Blank" :
+                       question.type === "true-false" ? "True/False" : question.type}
                     </Badge>
                     <div className="text-lg font-medium">{question.text}</div>
                   </div>
 
-                  {question.type === "MCQ" && (
+                  {question.type === "multiple-choice" && (
                     <RadioGroup
                       value={answers[currentQuestion] || ""}
                       onValueChange={handleAnswerChange}
                       className="space-y-3"
                     >
-                      {question.options.map((option) => (
-                        <div
-                          key={option.id}
-                          className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                          onClick={() => handleAnswerChange(option.id)}
-                        >
-                          <RadioGroupItem value={option.id} id={`option-${option.id}`} />
-                          <Label htmlFor={`option-${option.id}`} className="flex-1 cursor-pointer">
-                            {option.text}
-                          </Label>
-                        </div>
-                      ))}
+                      {question.options && Array.isArray(question.options) && question.options.map((option, index) => {
+                        // Handle both string options and object options with id/text properties
+                        const optionId = typeof option === 'string' ? option : option.id;
+                        const optionText = typeof option === 'string' ? option : option.text;
+                        const optionKey = typeof option === 'string' ? `option-${index}` : option.id;
+
+                        return (
+                          <div
+                            key={optionKey}
+                            className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
+                            onClick={() => handleAnswerChange(optionId)}
+                          >
+                            <RadioGroupItem value={optionId} id={`option-${optionKey}`} />
+                            <Label htmlFor={`option-${optionKey}`} className="flex-1 cursor-pointer">
+                              {optionText}
+                            </Label>
+                          </div>
+                        );
+                      })}
                     </RadioGroup>
                   )}
 
-                  {question.type === "Fill-up" && (
+                  {question.type === "short-answer" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="short-answer">Your Answer</Label>
+                      <input
+                        id="short-answer"
+                        type="text"
+                        value={answers[currentQuestion] || ""}
+                        onChange={(e) => handleAnswerChange(e.target.value)}
+                        placeholder="Type your answer here"
+                        className="w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+                      />
+                    </div>
+                  )}
+
+                  {question.type === "descriptive" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="descriptive-answer">Your Answer</Label>
+                      <textarea
+                        id="descriptive-answer"
+                        value={answers[currentQuestion] || ""}
+                        onChange={(e) => handleAnswerChange(e.target.value)}
+                        placeholder="Type your detailed answer here"
+                        rows={6}
+                        className="w-full p-4 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none resize-vertical"
+                      />
+                    </div>
+                  )}
+
+                  {question.type === "fill-in-blank" && (
                     <div className="space-y-2">
                       <Label htmlFor="fill-answer">Your Answer</Label>
                       <input
@@ -623,7 +859,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     </div>
                   )}
 
-                  {question.type === "True/False" && (
+                  {question.type === "true-false" && (
                     <RadioGroup
                       value={answers[currentQuestion] || ""}
                       onValueChange={handleAnswerChange}

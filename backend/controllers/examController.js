@@ -1,4 +1,4 @@
-const Exam = require('../models/Exam');
+const Exam = require('../models/Exam_updated');
 const { validateExam } = require('../utils/validators');
 
 // In a real app, this would be a database model
@@ -79,7 +79,7 @@ const getExamById = async (req, res) => {
 
 const createExam = async (req, res) => {
   try {
-    const { title, subject, class: className, chapter, duration, startDate, endDate, attempts } = req.body;
+    const { title, subject, class: classId, chapter, duration, startDate, endDate, attempts } = req.body;
 
     // Validate exam data
     const validationError = validateExam(req.body);
@@ -91,7 +91,7 @@ const createExam = async (req, res) => {
     const exam = new Exam({
       title,
       subject,
-      class: className,
+      class: classId, // Now expecting a class ObjectId
       chapter,
       duration,
       startDate,
@@ -120,6 +120,7 @@ const createExam = async (req, res) => {
 const getTeacherExams = async (req, res) => {
   try {
     const exams = await Exam.find({ createdBy: req.user._id })
+      .populate('class', 'name section') // Populate class data
       .sort({ createdAt: -1 });
 
     // Update status for each exam
@@ -143,7 +144,8 @@ const getTeacherExams = async (req, res) => {
 const getExam = async (req, res) => {
   try {
     const exam = await Exam.findById(req.params.id)
-      .populate('questions');
+      .populate('questions')
+      .populate('class', 'name section'); // Populate class data
 
     if (!exam) {
       return res.status(404).json({
@@ -167,7 +169,7 @@ const getExam = async (req, res) => {
 
 const updateExam = async (req, res) => {
   try {
-    const { title, subject, class: className, chapter, duration, startDate, endDate, attempts } = req.body;
+    const { title, subject, class: classId, chapter, duration, startDate, endDate, attempts } = req.body;
 
     // Validate exam data
     const validationError = validateExam(req.body);
@@ -195,7 +197,7 @@ const updateExam = async (req, res) => {
     // Update exam fields
     exam.title = title;
     exam.subject = subject;
-    exam.class = className;
+    exam.class = classId; // Now expecting a class ObjectId
     exam.chapter = chapter;
     exam.duration = duration;
     exam.startDate = startDate;
@@ -291,14 +293,41 @@ const getExamResults = async (req, res) => {
 const getExamsByClass = async (req, res) => {
   try {
     const classId = req.params.classId;
+    const studentId = req.user._id;
 
     // Find all exams for this class
     const exams = await Exam.find({ class: classId })
+      .populate('class', 'name section') // Populate class data
       .sort({ startDate: 1 });
 
     // Update status for each exam
     const updatedExams = await Promise.all(
-      exams.map(exam => updateExamStatus(exam))
+      exams.map(async exam => {
+        // Update the exam status
+        const updatedExam = await updateExamStatus(exam);
+
+        // If the user is a student, get their attempts for this exam
+        if (req.user.role === 'student') {
+          const ExamAttempt = require('../models/ExamAttempt');
+          const attempts = await ExamAttempt.find({
+            examId: exam._id,
+            studentId: studentId,
+            status: 'completed'
+          });
+
+          console.log(`Student ${studentId} has ${attempts.length} attempts for exam ${exam._id}`);
+
+          // Convert to plain object to add custom properties
+          const examObj = updatedExam.toObject();
+
+          // Add student attempts count to the exam object
+          examObj.studentAttempts = attempts.length;
+
+          return examObj;
+        }
+
+        return updatedExam;
+      })
     );
 
     res.status(200).json({

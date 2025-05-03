@@ -1,5 +1,5 @@
 const Question = require('../models/Question');
-const Exam = require('../models/Exam');
+const Exam = require('../models/Exam_updated');
 const mongoose = require('mongoose');
 
 // Get all questions with filters
@@ -213,6 +213,12 @@ exports.addToExam = async (req, res) => {
     question.examIds.push(examId);
     await question.save();
 
+    // Add question to exam's questions array
+    if (!exam.questions.includes(questionId)) {
+      exam.questions.push(questionId);
+      await exam.save();
+    }
+
     res.json({ success: true, message: 'Question added to exam successfully' });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -240,6 +246,10 @@ exports.removeFromExam = async (req, res) => {
     // Remove exam from question's examIds
     question.examIds = question.examIds.filter(id => id.toString() !== examId);
     await question.save();
+
+    // Remove question from exam's questions array
+    exam.questions = exam.questions.filter(id => id.toString() !== questionId);
+    await exam.save();
 
     res.json({ success: true, message: 'Question removed from exam successfully' });
   } catch (error) {
@@ -276,4 +286,4 @@ exports.getChapters = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
-}; 
+};
