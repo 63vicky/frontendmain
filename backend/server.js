@@ -10,6 +10,7 @@ const helmet = require('helmet');
 const { apiLimiter, authLimiter, examLimiter, examCreationLimiter } = require('./middleware/rateLimit');
 const { cache, CACHE_DURATION } = require('./middleware/cache');
 const { errorHandler, handleSpecificErrors } = require('./middleware/errorHandler');
+const { initScheduledTasks } = require('./utils/scheduler');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -129,6 +130,9 @@ app.use((_req, res) => {
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+
+  // Initialize scheduled tasks
+  initScheduledTasks();
 });
 
 // Graceful shutdown

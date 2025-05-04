@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const csv = require('csv-parser');
 const xlsx = require('xlsx');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const Class = require('../models/Class');
 const Subject = require('../models/Subject');
@@ -70,7 +71,7 @@ exports.parseFile = async (file) => {
 /**
  * Validate and process student data
  * @param {Array} data - Parsed data from file
- * @returns {Object} - Validation results with valid and invalid entries
+ * @returns {Object} - Validation results with valid and invalid entries (passwords are hashed)
  */
 exports.validateStudentData = async (data) => {
   const validEntries = [];
@@ -130,11 +131,16 @@ exports.validateStudentData = async (data) => {
         }
       }
 
-      // Add valid entry
+      // Hash password before adding to valid entries
+      const password = entry.password || 'password123'; // Default password if not provided
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Add valid entry with hashed password
       validEntries.push({
         name: entry.name,
         email: entry.email,
-        password: entry.password || 'password123', // Default password if not provided
+        password: hashedPassword,
         role: 'student',
         rollNo: entry.rollNo,
         class: classId,
@@ -156,7 +162,7 @@ exports.validateStudentData = async (data) => {
 /**
  * Validate and process teacher data
  * @param {Array} data - Parsed data from file
- * @returns {Object} - Validation results with valid and invalid entries
+ * @returns {Object} - Validation results with valid and invalid entries (passwords are hashed)
  */
 exports.validateTeacherData = async (data) => {
   const validEntries = [];
@@ -234,11 +240,16 @@ exports.validateTeacherData = async (data) => {
         }
       }
 
-      // Add valid entry
+      // Hash password before adding to valid entries
+      const password = entry.password || 'password123'; // Default password if not provided
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(password, salt);
+
+      // Add valid entry with hashed password
       validEntries.push({
         name: entry.name,
         email: entry.email,
-        password: entry.password || 'password123', // Default password if not provided
+        password: hashedPassword,
         role: 'teacher',
         subject: subjectId,
         classes: classIds,
@@ -464,3 +475,5 @@ exports.generateQuestionTemplate = () => {
 
   return xlsx.write(workbook, { type: 'buffer', bookType: 'xlsx' });
 };
+
+

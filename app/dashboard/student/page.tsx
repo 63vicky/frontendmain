@@ -91,11 +91,11 @@ function StudentDashboardContent() {
 
         // Fetch available exams for the student's class
         if (!user.class) {
-          console.log("Student doesn't have a class assigned")
+          
           setAvailableExams([])
           setUpcomingExams([])
         } else {
-          console.log("Fetching exams for class:", user.class)
+          
           try {
             // Fetch exams
             const examsResponse = await api.get<{success: boolean, data: Exam[]}>(`/exams/class/${user.class}`)
@@ -103,35 +103,22 @@ function StudentDashboardContent() {
             // Fetch student's attempts for all exams
             let attemptsData: Record<string, ExamAttempt[]> = {};
             try {
-              console.log("Fetching student attempts...");
               attemptsData = await attemptService.getStudentAttempts();
-              console.log("Attempts data received:", attemptsData);
               setExamAttempts(attemptsData);
             } catch (attemptError) {
-              console.error("Error fetching student attempts:", attemptError);
               // Continue with empty attempts data
             }
 
             if (examsResponse.data && examsResponse.data.data) {
               const exams = examsResponse.data.data;
-              console.log("Exams fetched:", exams);
 
               // Add student attempts to each exam
               const examsWithAttempts = exams.map(exam => {
                 // Get the exam ID as string
                 const examId = exam._id.toString();
-                console.log(`Processing exam ${examId} (${exam.title})`);
 
                 // Get attempts for this exam
                 const examAttemptsList = attemptsData[examId] || [];
-                console.log(`Found ${examAttemptsList.length} attempts for exam ${examId}`);
-
-                // Log the exam attempts data for debugging
-                console.log(`Exam ${examId} attempts data:`, {
-                  examAttempts: examAttemptsList.length,
-                  maxAttempts: exam.attempts?.max || 1,
-                  attemptsField: exam.attempts
-                });
 
                 // If the exam has a current attempts value of 5 and max of 5,
                 // this is likely a case where the backend is using the current field incorrectly
@@ -158,12 +145,10 @@ function StudentDashboardContent() {
               setAvailableExams(available || [])
               setUpcomingExams(upcoming || [])
             } else {
-              console.log("No exams data in response")
               setAvailableExams([])
               setUpcomingExams([])
             }
           } catch (error) {
-            console.error("Error fetching exams:", error)
             setAvailableExams([])
             setUpcomingExams([])
           }
@@ -178,7 +163,6 @@ function StudentDashboardContent() {
 
         setLoading(false)
       } catch (error) {
-        console.error("Error fetching dashboard data:", error)
         setError("Failed to load dashboard data. Please try again later.")
         setLoading(false)
         toast({
@@ -196,6 +180,7 @@ function StudentDashboardContent() {
     setActiveTab(value)
     router.push(`/dashboard/student?tab=${value}`, { scroll: false })
   }
+console.log(recentResults[0]);
 
   return (
     <DashboardLayout role="student">
@@ -517,7 +502,7 @@ function StudentDashboardContent() {
                       return (
                         <div
                           key={exam._id}
-                          className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50"
+                          className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-900"
                         >
                           <div className="space-y-1 mb-4 md:mb-0">
                             <div className="flex items-center gap-2">
@@ -574,7 +559,7 @@ function StudentDashboardContent() {
                             disabled={status !== "Available" || (!!exam.studentAttempts && !!exam.attempts?.max && exam.studentAttempts >= exam.attempts.max)}
                             className={`w-full md:w-auto ${
                               status === "Available" && (!exam.studentAttempts || !exam.attempts?.max || exam.studentAttempts < exam.attempts.max)
-                                ? "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+                                ? "btn-gradient"
                                 : ""
                             }`}
                             asChild
@@ -636,7 +621,7 @@ function StudentDashboardContent() {
                       return (
                         <div
                           key={result._id}
-                          className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50"
+                          className="flex flex-col md:flex-row md:items-center justify-between p-6 hover:bg-slate-50 dark:hover:bg-slate-900"
                         >
                           <div className="space-y-1 mb-4 md:mb-0">
                             <p className="font-medium text-lg">{result.examId?.title || "Exam"}</p>
@@ -646,7 +631,7 @@ function StudentDashboardContent() {
                               Completed: {completedDate.toLocaleDateString()}
                             </p>
                             <div className="space-y-1">
-                              <div className="flex justify-between text-sm text-muted-foreground">
+                              <div className="flex flex-col justify-between text-sm text-muted-foreground">
                                 <span>Attempt: {result.attemptNumber || 1} of {result.examId?.attempts?.max || 1}</span>
                                 {result.attemptNumber && result.examId?.attempts?.max && (
                                   <span className={
@@ -692,7 +677,7 @@ function StudentDashboardContent() {
                           </div>
                           <Button
                             variant="outline"
-                            className="border-green-200 text-green-700 hover:bg-green-50 hover:text-green-800"
+                            className="border-green-200 text-green-700 bg-green-100 hover:bg-green-50 hover:text-green-800"
                             asChild
                           >
                             <Link href={`/result/${result._id}`}>View Details</Link>

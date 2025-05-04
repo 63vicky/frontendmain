@@ -132,6 +132,9 @@ export const resultService = {
   // Get attempt by ID (for compatibility with ExamAttempt model)
   async getAttemptById(id: string): Promise<ExamAttempt> {
     try {
+      console.log('Fetching attempt with ID:', id);
+
+      // First try to fetch from the attempts endpoint
       const response = await fetch(`${API_URL}/attempts/${id}`, {
         credentials: 'include',
         headers: {
@@ -141,10 +144,76 @@ export const resultService = {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch attempt');
+        console.error('Failed to fetch attempt:', response.status, response.statusText);
+
+        // If not found, try to fetch question analytics for this attempt
+        // This will provide more detailed data including question analytics
+        try {
+          console.log('Attempting to fetch question analytics for attempt:', id);
+          const analyticsResponse = await fetch(`${API_URL}/question-analytics/attempt/${id}`, {
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            },
+          });
+
+          if (analyticsResponse.ok) {
+            const analyticsData = await analyticsResponse.json();
+            console.log('Question analytics data received:', analyticsData);
+
+            if (analyticsData.success && analyticsData.data) {
+              // Convert analytics data to ExamAttempt format
+              return {
+                _id: id,
+                id: id,
+                examId: analyticsData.data.examId,
+                studentId: analyticsData.data.studentId,
+                startTime: analyticsData.data.startTime,
+                endTime: analyticsData.data.endTime,
+                score: analyticsData.data.score || 0,
+                maxScore: analyticsData.data.maxScore || 100,
+                percentage: analyticsData.data.percentage || 0,
+                rating: analyticsData.data.rating || 'Needs Improvement',
+                answers: analyticsData.data.questions.map((q: any) => ({
+                  questionId: q.id,
+                  selectedOption: q.userAnswer || '',
+                  isCorrect: q.isCorrect || false,
+                  points: q.points || 0,
+                  timeSpent: q.timeSpent || 0
+                })),
+                questionTimings: analyticsData.data.questions.map((q: any) => ({
+                  questionId: q.id,
+                  timeSpent: q.timeSpent || 0
+                })),
+                timeSpent: analyticsData.data.timeSpent || 0,
+                status: 'completed',
+                categoryBreakdown: analyticsData.data.categoryBreakdown || [],
+                classRank: analyticsData.data.classRank || { rank: 0, totalStudents: 0, percentile: 0 }
+              };
+            }
+          }
+        } catch (analyticsError) {
+          console.error('Error fetching question analytics:', analyticsError);
+        }
+
+        throw new Error(`Failed to fetch attempt: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log('Attempt data received:', data);
+
+      // Ensure all required fields are present
+      return {
+        ...data,
+        id: data.id || data._id || id,
+        _id: data._id || data.id || id,
+        answers: data.answers || [],
+        questionTimings: data.questionTimings || [],
+        categoryBreakdown: data.categoryBreakdown || [],
+        timeSpent: data.timeSpent || 0,
+        status: data.status || 'completed'
+      };
     } catch (error) {
       console.error('Get attempt error:', error);
       throw error;

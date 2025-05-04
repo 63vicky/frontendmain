@@ -19,7 +19,6 @@ export function AuthCheck({ children, requiredRole }: AuthCheckProps) {
       try {
         // Check if user is authenticated
         if (!authService.isAuthenticated()) {
-          console.log('User not authenticated, redirecting to login');
           router.push('/login');
           return;
         }
@@ -27,10 +26,8 @@ export function AuthCheck({ children, requiredRole }: AuthCheckProps) {
         // Check if user has required role
         if (requiredRole) {
           const userRole = authService.getCurrentRole();
-          console.log(`Checking role: User has ${userRole}, required ${requiredRole}`);
           
           if (!userRole || userRole !== requiredRole) {
-            console.log(`Role mismatch: User has ${userRole}, required ${requiredRole}`);
             router.push('/login');
             return;
           }

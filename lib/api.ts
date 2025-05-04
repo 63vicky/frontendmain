@@ -817,7 +817,9 @@ export const bulkUploadApi = {
   // Download question template
   downloadQuestionTemplate: () => {
     window.open(`${API_URL}/bulk-uploads/templates/questions`, '_blank');
-  }
+  },
+
+
 };
 
 export default api;

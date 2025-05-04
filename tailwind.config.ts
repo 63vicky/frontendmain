@@ -61,6 +61,22 @@ const config: Config = {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        gradient: {
+          from: "hsl(var(--gradient-from))",
+          to: "hsl(var(--gradient-to))",
+          "hover-from": "hsl(var(--gradient-hover-from))",
+          "hover-to": "hsl(var(--gradient-hover-to))",
+        },
+        status: {
+          success: "hsl(var(--success))",
+          "success-foreground": "hsl(var(--success-foreground))",
+          warning: "hsl(var(--warning))",
+          "warning-foreground": "hsl(var(--warning-foreground))",
+          info: "hsl(var(--info))",
+          "info-foreground": "hsl(var(--info-foreground))",
+          error: "hsl(var(--error))",
+          "error-foreground": "hsl(var(--error-foreground))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

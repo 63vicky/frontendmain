@@ -71,7 +71,6 @@ export default function StudentProfilePage() {
             setAttendance(attendanceResponse.data)
           }
         } catch (attendanceError) {
-          console.log("Attendance data not available")
           // Set default attendance data
           setAttendance({
             overall: "95%",
@@ -83,7 +82,6 @@ export default function StudentProfilePage() {
 
         setLoading(false)
       } catch (error) {
-        console.error("Error fetching student profile:", error)
         setError("Failed to load profile data. Please try again later.")
         setLoading(false)
         toast({

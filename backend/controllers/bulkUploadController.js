@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Question = require('../models/Question');
 const { parseFile, validateStudentData, validateTeacherData, validateQuestionData, generateStudentTemplate, generateTeacherTemplate, generateQuestionTemplate } = require('../utils/fileParser');
 const { handleError } = require('../utils/errorHandler');
+const { cleanupOldFiles } = require('../utils/fileCleanup');
 const fs = require('fs').promises;
 
 /**
@@ -226,11 +227,11 @@ exports.uploadTeachers = async (req, res) => {
  */
 exports.getBulkUploads = async (req, res) => {
   try {
-    const { type } = req.query;
+    const { type, includeDeleted } = req.query;
     const query = {};
 
-    // Filter by upload type if provided
-    if (type) {
+    // Filter by upload type if provided and not 'all'
+    if (type && type !== 'all') {
       query.uploadType = type;
     }
 
@@ -238,6 +239,13 @@ exports.getBulkUploads = async (req, res) => {
     if (req.user.role !== 'principal') {
       query.uploadedBy = req.user._id;
     }
+
+    // By default, don't include files that have been deleted
+    if (includeDeleted !== 'true') {
+      query.fileDeleted = { $ne: true };
+    }
+
+
 
     const bulkUploads = await BulkUpload.find(query)
       .sort({ createdAt: -1 })
@@ -474,3 +482,36 @@ exports.downloadQuestionTemplate = (req, res) => {
     handleError(res, error, 'Error generating question template');
   }
 };
+
+/**
+ * Manually trigger cleanup of old uploads
+ * @param {number} days - Number of days to keep files (default: 7)
+ */
+exports.cleanupUploads = async (req, res) => {
+  try {
+    // Get days from query parameter or use default (7 days)
+    const days = parseInt(req.query.days) || 7;
+
+    // Validate days parameter
+    if (days < 1) {
+      return res.status(400).json({
+        success: false,
+        message: 'Days parameter must be at least 1'
+      });
+    }
+
+    // Run the cleanup
+    const result = await cleanupOldFiles(days);
+
+    // Return the result
+    res.status(200).json({
+      success: true,
+      message: `Cleanup completed. Deleted ${result.deletedCount} files.`,
+      data: result
+    });
+  } catch (error) {
+    handleError(res, error, 'Error cleaning up uploads');
+  }
+};
+
+

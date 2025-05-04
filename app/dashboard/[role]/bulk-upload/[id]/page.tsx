@@ -28,7 +28,7 @@ export default function BulkUploadDetails() {
         setLoading(true)
         const response = await bulkUploadApi.getUploadById(params.id as string)
         setBulkUpload(response.data)
-        
+
         // Extract records from the processedData field
         if (response.data.processedData && response.data.processedData.records) {
           setRecords(response.data.processedData.records)
@@ -50,7 +50,7 @@ export default function BulkUploadDetails() {
   useEffect(() => {
     if (records.length > 0 && searchTerm) {
       const filtered = records.filter((record) => {
-        return Object.values(record).some((value) => 
+        return Object.values(record).some((value) =>
           value && value.toString().toLowerCase().includes(searchTerm.toLowerCase())
         )
       })
@@ -80,7 +80,7 @@ export default function BulkUploadDetails() {
 
   const getColumnHeaders = () => {
     if (!filteredRecords.length) return []
-    
+
     // Get all unique keys from all records
     const allKeys = new Set<string>()
     filteredRecords.forEach(record => {
@@ -90,7 +90,7 @@ export default function BulkUploadDetails() {
         }
       })
     })
-    
+
     return Array.from(allKeys)
   }
 
@@ -98,9 +98,12 @@ export default function BulkUploadDetails() {
     router.back()
   }
 
+  // Extract role from the URL path
+  const role = params.role as "principal" | "teacher" | "student" | "admin";
+
   if (loading) {
     return (
-      <DashboardLayout>
+      <DashboardLayout role={role}>
         <div className="flex items-center justify-center h-full">
           <p>Loading...</p>
         </div>
@@ -109,7 +112,7 @@ export default function BulkUploadDetails() {
   }
 
   return (
-    <DashboardLayout>
+    <DashboardLayout role={role}>
       <div className="container mx-auto py-4">
         <Button variant="ghost" onClick={goBack} className="mb-4">
           <ArrowLeft className="h-4 w-4 mr-2" />

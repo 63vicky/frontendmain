@@ -68,7 +68,11 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
         const data = await response.json();
         setClasses(data.data || []);
       } catch (err) {
-        console.error('Error fetching classes:', err);
+        toast({
+          title: "Error",
+          description: "Failed to fetch classes",
+          variant: "destructive"
+        })
       }
     };
 
@@ -100,7 +104,6 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
     ...fetchOptions,
     autoFetch: false, // Disable auto-fetch
     onError: (error: Error) => {
-      console.error('Error fetching questions:', error);
       toast({
         title: 'Error',
         description: error.message || 'Failed to fetch questions',
@@ -123,17 +126,10 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
   // Fetch questions when dialog opens or exam changes
   useEffect(() => {
     if (isQuestionDialogOpen && questionsUrl) {
-      console.log('Fetching questions for exam:', selectedExam?._id);
       refetchQuestions();
     }
   }, [isQuestionDialogOpen, questionsUrl, refetchQuestions, selectedExam?._id]);
 
-  // Debug questions data
-  useEffect(() => {
-    if (questionsData?.data) {
-      console.log('Questions data updated:', questionsData.data);
-    }
-  }, [questionsData?.data]);
 
   // Create question mutation
   const { mutate: createQuestion, loading: creatingQuestion } = useMutation<Question>(
@@ -243,13 +239,11 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
 
   // Handle add question
   const handleAddQuestion = useCallback((exam: Exam) => {
-    console.log("handleAddQuestion called for exam:", exam.title); // Debug log
     if (onAddQuestion) {
       onAddQuestion(exam);
     } else {
       setSelectedExam(exam);
       setIsQuestionDialogOpen(true);
-      console.log("Opening question dialog with initialTab=existing"); // Debug log
     }
   }, [onAddQuestion]);
 
@@ -297,8 +291,6 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
 
   // Handle dialog close
   const handleDialogClose = useCallback((isOpen: boolean) => {
-    console.log("handleDialogClose called with isOpen:", isOpen); // Debug log
-
     if (!isOpen) {
       setIsQuestionDialogOpen(false);
       setSelectedExam(null);

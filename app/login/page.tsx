@@ -108,7 +108,7 @@ function LoginContent() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4">
+      <header className="header-gradient py-4">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold flex items-center">
             <span className="bg-white dark:bg-indigo-200 text-indigo-800 rounded-lg p-1 mr-2">TA</span>
@@ -117,7 +117,7 @@ function LoginContent() {
           <ThemeToggle />
         </div>
       </header>
-      <main className="flex-1 flex items-center justify-center p-4 bg-gradient-to-b from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800">
+      <main className="flex-1 flex items-center justify-center p-4 bg-gradient-page">
         <div className="w-full max-w-md">
           <div className="bg-white dark:bg-slate-800 rounded-lg shadow-lg p-8 border border-slate-200 dark:border-slate-700">
             <div className="text-center mb-6">
@@ -219,7 +219,7 @@ function LoginContent() {
               </div>
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 dark:from-indigo-700 dark:to-indigo-800 dark:hover:from-indigo-600 dark:hover:to-indigo-700"
+                className="w-full btn-gradient"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -235,7 +235,7 @@ function LoginContent() {
           </div>
         </div>
       </main>
-      <footer className="bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4">
+      <footer className="header-gradient py-4">
         <div className="container mx-auto px-4 text-center">
           <p>© 2025 Tech Anubhavi. All rights reserved.</p>
         </div>

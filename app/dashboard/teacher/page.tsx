@@ -88,7 +88,6 @@ function TeacherDashboardContent() {
   }
 
   const handleAddQuestion = (exam: Exam) => {
-    console.log("TeacherDashboard handleAddQuestion called for exam:", exam.title); // Debug log
     setSelectedExam(exam)
     setIsQuestionDialogOpen(true)
   }
@@ -98,8 +97,6 @@ function TeacherDashboardContent() {
   }
 
   const handleDialogClose = (isOpen: boolean) => {
-    console.log("TeacherDashboard handleDialogClose called with isOpen:", isOpen); // Debug log
-
     if (!isOpen) {
       setIsQuestionDialogOpen(false)
       setSelectedExam(null)

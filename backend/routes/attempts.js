@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const ExamAttempt = require('../models/ExamAttempt');
 const Exam = require('../models/Exam_updated'); // Use the updated Exam model
 const Question = require('../models/Question');
+const Result = require('../models/Result'); // Add Result model for creating results
 
 // Get all attempts for the current student, organized by exam ID
 router.get('/student', authenticate, authorize('student'), async (req, res) => {
@@ -112,7 +113,18 @@ router.post('/', authenticate, authorize('student'), async (req, res) => {
     if (exam.totalMarks) {
       maxScore = exam.totalMarks;
     } else if (exam.questions && exam.questions.length) {
-      maxScore = exam.questions.length * 10; // Default to 10 points per question
+      // Fetch actual question points
+      const questionIds = exam.questions.map(q => q._id || q);
+      const questions = await Question.find({ _id: { $in: questionIds } });
+
+      // Calculate total points from actual question points
+      maxScore = questions.reduce((total, q) => total + q.points, 0);
+
+      // Fallback if no questions found or points calculation is zero
+      if (maxScore === 0) {
+        console.warn('Warning: Could not calculate max score from questions. Using default.');
+        maxScore = exam.questions.length * 10; // Default fallback
+      }
     }
 
     // Create new attempt
@@ -182,8 +194,8 @@ router.post('/:id/submit', authenticate, authorize('student'), async (req, res) 
         isCorrect = String(question.correctAnswer).toLowerCase() === String(answer.selectedOption).toLowerCase();
       }
 
-      // Calculate points
-      const points = isCorrect ? (question.points || 10) : 0;
+      // Calculate points - always use the question's actual points
+      const points = isCorrect ? question.points : 0;
       if (isCorrect) {
         score += points;
       }
@@ -202,17 +214,30 @@ router.post('/:id/submit', authenticate, authorize('student'), async (req, res) 
       if (isCorrect) categoryData.correct += 1;
       categoryMap.set(difficulty, categoryData);
 
+      // Check if this is a descriptive question and handle it specially
+      // Either from the question type or from the flag sent by the frontend
+      const isDescriptiveQuestion = question.type === 'descriptive' || answer.isDescriptive;
+
       answerResults.push({
         questionId: answer.questionId,
         selectedOption: answer.selectedOption,
+        // Store descriptive answers in the dedicated field
+        descriptiveAnswer: isDescriptiveQuestion ? answer.selectedOption : '',
         isCorrect,
         timeSpent: timeSpentOnQuestion,
         points
       });
     }
 
-    // Calculate percentage and rating
-    const totalPoints = questions.reduce((total, q) => total + (q.points || 10), 0);
+    // Calculate percentage and rating - always use actual points
+    let totalPoints = questions.reduce((total, q) => total + q.points, 0);
+
+    // Validate that the total points calculation is accurate
+    if (totalPoints === 0) {
+      console.error('Error: Total points calculated as zero. Using default value of 100.');
+      totalPoints = 100; // Fallback to prevent division by zero
+    }
+
     const percentage = Math.round((score / totalPoints) * 100);
     let rating = 'Needs Improvement';
     if (percentage >= 90) rating = 'Excellent';
@@ -255,7 +280,50 @@ router.post('/:id/submit', authenticate, authorize('student'), async (req, res) 
     };
 
     await attempt.save();
-    res.json(attempt);
+
+    try {
+      // Calculate grade based on percentage
+      let grade = 'F';
+      if (percentage >= 90) grade = 'A+';
+      else if (percentage >= 80) grade = 'A';
+      else if (percentage >= 70) grade = 'B';
+      else if (percentage >= 60) grade = 'C';
+      else if (percentage >= 50) grade = 'D';
+
+      // Count existing results for this student and exam to determine attempt number
+      const resultCount = await Result.countDocuments({
+        examId: attempt.examId,
+        studentId: req.user._id
+      });
+
+      const attemptNumber = resultCount + 1;
+
+      // Create a corresponding Result record
+      const newResult = new Result({
+        examId: attempt.examId,
+        studentId: req.user._id,
+        attemptNumber: attemptNumber,
+        marks: score,
+        percentage: percentage,
+        grade: grade,
+        feedback: '',
+        createdBy: req.user._id
+      });
+
+      // Save the result
+      const savedResult = await newResult.save();
+      console.log('Created result record with ID:', savedResult._id);
+
+      // Add the result ID to the response
+      const response = attempt.toObject();
+      response.resultId = savedResult._id;
+
+      res.json(response);
+    } catch (resultError) {
+      console.error('Error creating result record:', resultError);
+      // Still return the attempt even if result creation fails
+      res.json(attempt);
+    }
   } catch (error) {
     console.error('Error submitting exam attempt:', error);
     res.status(400).json({ message: 'Error submitting exam attempt', error: error.message });
@@ -275,6 +343,27 @@ router.get('/exam/:examId', authenticate, async (req, res) => {
     const attempts = await ExamAttempt.find(query)
       .populate('studentId', 'name email')
       .sort({ startTime: -1 });
+
+    res.json(attempts);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching attempts', error: error.message });
+  }
+});
+
+// Get attempts by student and exam
+router.get('/student/:studentId/exam/:examId', authenticate, async (req, res) => {
+  try {
+    const { studentId, examId } = req.params;
+
+    // Check access permissions
+    if (req.user.role === 'student' && studentId !== req.user._id.toString()) {
+      return res.status(403).json({ message: 'Access denied' });
+    }
+
+    const attempts = await ExamAttempt.find({
+      studentId,
+      examId
+    }).sort({ createdAt: -1 });
 
     res.json(attempts);
   } catch (error) {

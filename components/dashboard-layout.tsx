@@ -241,8 +241,8 @@ function DashboardContent({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-900">
-      <header className="sticky top-0 z-50 bg-gradient-to-r from-indigo-800 to-indigo-700 dark:from-indigo-900 dark:to-indigo-800 text-white py-4 shadow-md">
+    <div className="min-h-screen flex flex-col bg-background">
+      <header className="sticky top-0 z-50 header-gradient py-4 shadow-md">
         <div className="mx-auto px-4 flex justify-between items-center">
           <div className="flex items-center">
             <Link href="/" className="text-2xl font-bold flex items-center">
@@ -341,7 +341,7 @@ function DashboardContent({
           </div>
         </aside>
 
-        <main className="flex-1 p-6 md:ml-64 bg-slate-50 dark:bg-slate-900 max-w-[100vw] overflow-auto">{children}</main>
+        <main className="flex-1 p-6 md:ml-64 bg-background max-w-[100vw] overflow-auto">{children}</main>
       </div>
     </div>
   )

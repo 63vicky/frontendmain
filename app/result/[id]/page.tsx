@@ -7,18 +7,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trophy, Award, Star, Clock, BarChart2, BookOpen, Download, Printer, Share2, Loader2, Info, AlertTriangle } from "lucide-react"
-import { Suspense, useState, useEffect } from "react"
+import { Trophy, Award, Star, Clock, BarChart2, BookOpen, Download, Printer, Share2, Loader2, Info, AlertTriangle, ArrowUturnLeft } from "lucide-react"
+import { Suspense, useState, useEffect, use } from "react"
 import * as React from "react"
 import { resultService } from "@/lib/services/result-service"
 import { Result, Exam, Question } from "@/lib/types"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 import QuestionAnalysis from "@/components/question-analysis"
+import { authService } from "@/lib/services/auth"
+import { attemptService, ComprehensiveAttemptData } from "@/lib/services/attempt"
 
 export default function ResultPage({ params }: { params: { id: string } }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
+    <div className="min-h-screen bg-gradient-page dark:bg-gradient-page-dark">
       <Suspense fallback={<div>Loading...</div>}>
         <ResultContent params={params} />
       </Suspense>
@@ -27,12 +29,13 @@ export default function ResultPage({ params }: { params: { id: string } }) {
 }
 
 function ResultContent({ params }: { params: { id: string } }) {
-  // Unwrap params using React.use()
-  const resolvedParams = React.use(params)
-  const resultId = resolvedParams.id
+  // Unwrap params using use() before accessing properties
+  const unwrappedParams = use(params as any) as { id: string }
+  const resultId = unwrappedParams.id
   const searchParams = useSearchParams()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [attemptData, setAttemptData] = useState<ComprehensiveAttemptData | null>(null)
   const [result, setResult] = useState<Result | null>(null)
   const [exam, setExam] = useState<Exam | null>(null)
   const { toast } = useToast()
@@ -49,155 +52,156 @@ function ResultContent({ params }: { params: { id: string } }) {
   useEffect(() => {
     const fetchResultData = async () => {
       try {
-        setLoading(true)
+        setLoading(true);
+        setError(null);
 
-        // First try to get the result by ID (this might be a Result or an ExamAttempt ID)
+        console.log('Fetching comprehensive data for ID:', resultId);
+
+        // Use our comprehensive attempt data service to fetch all data at once
+        const comprehensiveData = await attemptService.getComprehensiveAttemptData(resultId);
+        console.log('Comprehensive data received:', comprehensiveData);
+
+        // Store the comprehensive data
+        setAttemptData(comprehensiveData);
+
+        // Convert to Result format for backward compatibility
+        const convertedResult: Result = {
+          _id: comprehensiveData.id || comprehensiveData._id || resultId,
+          examId: comprehensiveData.examId,
+          studentId: comprehensiveData.studentId,
+          score: comprehensiveData.percentage || 0,
+          marks: comprehensiveData.score || 0,
+          rating: comprehensiveData.rating || calculateRating(comprehensiveData.percentage || 0),
+          answers: (comprehensiveData.answers || []).map(a => ({
+            questionId: a.questionId,
+            answer: a.selectedOption || '',
+            isCorrect: a.isCorrect || false,
+            points: a.points || 10
+          })),
+          startedAt: comprehensiveData.startTime || new Date().toISOString(),
+          submittedAt: comprehensiveData.endTime || comprehensiveData.submittedAt || new Date().toISOString(),
+          startTime: comprehensiveData.startTime,
+          endTime: comprehensiveData.endTime,
+          timeSpent: comprehensiveData.timeSpent || 0,
+          status: (comprehensiveData.status === 'completed' ? 'completed' :
+                  comprehensiveData.status === 'in-progress' ? 'in-progress' :
+                  comprehensiveData.status === 'graded' ? 'graded' : 'completed') as 'completed' | 'in-progress' | 'graded',
+          feedback: comprehensiveData.feedback?.text || '',
+          createdBy: comprehensiveData.studentId,
+          createdAt: comprehensiveData.startTime || new Date().toISOString(),
+          updatedAt: comprehensiveData.endTime || new Date().toISOString(),
+          questionTimings: (comprehensiveData.questionTimings || []).map(timing => ({
+            questionId: timing.questionId,
+            startTime: timing.startTime || new Date().toISOString(),
+            endTime: timing.endTime || new Date().toISOString(),
+            timeSpent: timing.timeSpent
+          })),
+          categoryBreakdown: comprehensiveData.categoryBreakdown || [],
+          classStats: [],
+          attemptNumber: comprehensiveData.attemptNumber || 1
+        };
+
+        console.log('Converted result:', convertedResult);
+        setResult(convertedResult);
+
+        // Create exam object from comprehensive data
+        if (comprehensiveData.examTitle) {
+          const examData = {
+            _id: comprehensiveData.examId,
+            title: comprehensiveData.examTitle,
+            subject: comprehensiveData.examSubject,
+            class: comprehensiveData.examClass,
+            chapter: comprehensiveData.examChapter,
+            duration: comprehensiveData.examDuration,
+            attempts: {
+              max: comprehensiveData.maxAttempts || 1,
+              current: comprehensiveData.attemptNumber || 1
+            },
+            questions: comprehensiveData.questions || []
+          };
+
+          console.log('Created exam data:', examData);
+          setExam(examData as any);
+        }
+
+        setLoading(false);
+      } catch (error: any) {
+        console.error("Error fetching comprehensive data:", error);
+
+        // Fall back to the old method if comprehensive data fetch fails
         try {
+          console.log('Falling back to legacy data fetching methods');
+
           // Try to fetch as a Result first
-          const resultData = await resultService.getResultById(resultId)
-console.log(resultData);
+          const resultData = await resultService.getResultById(resultId);
+          console.log("Result data:", resultData);
 
           // Process the result data to ensure it has all required fields
           const processedResult: Result = {
             ...resultData,
-            // Ensure score is available (fallback to marks if score is not present)
             score: resultData.score || resultData.marks || 0,
-            // Ensure answers array exists
             answers: resultData.answers || [],
-            // Ensure dates are present
             startedAt: resultData.startedAt || resultData.createdAt,
             submittedAt: resultData.submittedAt || resultData.updatedAt,
-            // Add rating if not present
             rating: resultData.rating || calculateRating(resultData.score || resultData.marks || 0),
-            // Ensure questionTimings array exists
             questionTimings: resultData.questionTimings || [],
-            // Ensure categoryBreakdown array exists
             categoryBreakdown: resultData.categoryBreakdown || [],
-            // Ensure classStats array exists
             classStats: resultData.classStats || []
-          }
+          };
 
-          setResult(processedResult)
+          setResult(processedResult);
 
-          // If we have an examId in the result, fetch the exam details
+          // Fetch exam details
           if (resultData.examId) {
-            try {
-              // Handle both string ID and object with _id
-              const examIdValue = typeof resultData.examId === 'string'
-                ? resultData.examId
-                : (resultData.examId as any)._id || resultData.examId
+            const examIdValue = typeof resultData.examId === 'string'
+              ? resultData.examId
+              : (resultData.examId as any)._id || resultData.examId;
 
-              const examResponse = await fetch(`${API_URL}/exams/${examIdValue}`, {
-                credentials: "include",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-              })
+            // Fetch exam data using the API directly
+            const examResponse = await fetch(`${API_URL}/exams/${examIdValue}`, {
+              credentials: "include",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${localStorage.getItem("token")}`,
+              },
+            });
 
-              if (!examResponse.ok) {
-                throw new Error(`Failed to fetch exam: ${examResponse.status}`)
-              }
-
-              const examData = await examResponse.json()
-              setExam(examData)
-            } catch (examError) {
-              console.error("Error fetching exam details:", examError)
-              // Don't throw here, we can still show the result without exam details
+            if (examResponse.ok) {
+              const examData = await examResponse.json();
+              setExam(examData.data || examData);
             }
           }
-        } catch (resultError) {
-          // If that fails, try to fetch as an ExamAttempt
-          try {
-            const attemptData = await resultService.getAttemptById(resultId)
+        } catch (fallbackError) {
+          console.error("Error in fallback data fetching:", fallbackError);
 
-            // Calculate score percentage if not available
-            const scorePercentage = attemptData.percentage ||
-              (attemptData.score && attemptData.maxScore ?
-                Math.round((attemptData.score / attemptData.maxScore) * 100) : 0)
-
-            // Calculate rating based on score
-            const rating = calculateRating(scorePercentage)
-
-            // Convert ExamAttempt to Result format for compatibility
-            const convertedResult: Result = {
-              _id: attemptData.id || attemptData._id || resultId, // Fallback to resultId if both are undefined
-              examId: attemptData.examId,
-              studentId: attemptData.studentId,
-              score: scorePercentage,
-              marks: attemptData.score,
-              rating: attemptData.rating || rating,
-              answers: (attemptData.answers || []).map(a => ({
-                questionId: a.questionId,
-                answer: a.selectedOption,
-                isCorrect: a.isCorrect,
-                points: a.points || 10 // Default points
-              })),
-              startedAt: attemptData.startTime || new Date().toISOString(), // Fallback to current date
-              submittedAt: attemptData.endTime || new Date().toISOString(), // Fallback to current date
-              startTime: attemptData.startTime,
-              endTime: attemptData.endTime,
-              timeSpent: attemptData.timeSpent,
-              status: 'completed',
-              feedback: attemptData.feedback?.text || '',
-              createdBy: attemptData.studentId,
-              createdAt: attemptData.startTime || attemptData.createdAt || new Date().toISOString(), // Fallback to current date
-              updatedAt: attemptData.endTime || attemptData.updatedAt || new Date().toISOString(), // Fallback to current date
-              questionTimings: attemptData.questionTimings || [],
-              categoryBreakdown: attemptData.categoryBreakdown || [],
-              classStats: [] // Add empty classStats array
-            }
-
-            setResult(convertedResult)
-
-            // Fetch exam details
-            try {
-              const examResponse = await fetch(`${API_URL}/exams/${attemptData.examId}`, {
-                credentials: "include",
-                headers: {
-                  "Content-Type": "application/json",
-                  Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-              })
-
-              if (!examResponse.ok) {
-                throw new Error(`Failed to fetch exam: ${examResponse.status}`)
-              }
-
-              const examData = await examResponse.json()
-              setExam(examData)
-            } catch (examError) {
-              console.error("Error fetching exam details:", examError)
-              // Don't throw here, we can still show the result without exam details
-            }
-          } catch (attemptError) {
-            console.error("Error fetching attempt:", attemptError)
-            throw new Error("Could not fetch result or attempt data")
+          if (error.message && error.message.includes("Result not found")) {
+            setError("The result you're looking for could not be found. Please check your dashboard for your results.");
+          } else if (error.message && error.message.includes("Invalid result ID format")) {
+            setError("The result ID format is invalid. Please check the URL and try again.");
+          } else {
+            setError("Failed to load result data. Please try again later.");
           }
+
+          toast({
+            title: "Error",
+            description: error.response?.data?.message || error.message || "Failed to load result data",
+            variant: "destructive"
+          });
+        } finally {
+          setLoading(false);
         }
-
-        setLoading(false)
-      } catch (error) {
-        console.error("Error fetching result:", error)
-        setError("Failed to load result data. Please try again later.")
-        setLoading(false)
-        toast({
-          title: "Error",
-          description: "Failed to load result data. Using fallback values.",
-          variant: "destructive"
-        })
       }
-    }
+    };
 
     // Helper function to calculate rating based on score
     const calculateRating = (score: number): string => {
-      if (score >= 90) return "Excellent"
-      if (score >= 75) return "Good"
-      if (score >= 60) return "Satisfactory"
-      return "Needs Improvement"
-    }
+      if (score >= 90) return "Excellent";
+      if (score >= 75) return "Good";
+      if (score >= 60) return "Satisfactory";
+      return "Needs Improvement";
+    };
 
-    fetchResultData()
+    fetchResultData();
   }, [resultId, toast])
 
   // Use actual data or fallback to URL parameters
@@ -262,11 +266,11 @@ console.log(resultData);
   // If error and no fallback data, show error
   if (error && !score) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-        <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 text-white py-4 shadow-md">
+      <div className="min-h-screen bg-gradient-page dark:bg-gradient-page-dark">
+        <header className="header-gradient py-4 shadow-md">
           <div className="container mx-auto px-4 flex justify-between items-center">
             <Link href="/" className="text-2xl font-bold flex items-center">
-              <span className="bg-white text-indigo-800 rounded-lg p-1 mr-2">TA</span>
+              <span className="bg-background text-indigo-800 rounded-lg p-1 mr-2">TA</span>
               Tech Anubhavi
             </Link>
             <nav className="space-x-4">
@@ -278,19 +282,28 @@ console.log(resultData);
         </header>
 
         <div className="container mx-auto px-4 py-16">
-          <div className="max-w-md mx-auto bg-white rounded-lg shadow-lg p-8 text-center">
+          <div className="max-w-md mx-auto bg-background rounded-lg shadow-lg p-8 text-center">
             <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Result</h2>
             <p className="text-gray-600 mb-6">
-              We couldn't load the result data you requested. This might be because the result doesn't exist or you don't have permission to view it.
+              {error || "We couldn't load the result data you requested. This might be because the result doesn't exist or you don't have permission to view it."}
             </p>
             <div className="space-y-3">
               <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
+                <Link href="/dashboard/student?tab=results">View All Results</Link>
+              </Button>
+              <Button asChild className="w-full" variant="outline">
                 <Link href="/dashboard/student">Back to Dashboard</Link>
               </Button>
               <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
                 Try Again
               </Button>
+            </div>
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <p className="text-sm text-gray-500 mb-2">Result ID: {resultId}</p>
+              <p className="text-sm text-gray-500">
+                If you continue to experience issues, please contact support with this ID.
+              </p>
             </div>
           </div>
         </div>
@@ -305,6 +318,8 @@ console.log(resultData);
   const examTitle = examData?.title || "Exam"
   const examSubject = examData?.subject || ""
   const maxAttempts = examData?.attempts?.max || 5
+
+  console.log("Result data:", result);
 
   // Get current attempt number from result
   const currentAttempt = result?.attemptNumber ||
@@ -561,158 +576,8 @@ console.log(resultData);
   // Generate question analysis with real data where available
   const generateQuestionAnalysis = () => {
     if (!result?.answers || result.answers.length === 0) {
-      return [
-        {
-          number: 1,
-          correct: true,
-          points: 10,
-          difficulty: "Easy",
-          timeSpent: "1:20",
-          type: "MCQ",
-          isMock: true,
-          questionText: "What is the capital of France?",
-          userAnswer: "Paris",
-          correctAnswer: "Paris",
-          averageTime: "1:45",
-          classSuccessRate: 92,
-          topic: "Geography"
-        },
-        {
-          number: 2,
-          correct: true,
-          points: 10,
-          difficulty: "Easy",
-          timeSpent: "2:05",
-          type: "MCQ",
-          isMock: true,
-          questionText: "What is 7 × 8?",
-          userAnswer: "56",
-          correctAnswer: "56",
-          averageTime: "1:30",
-          classSuccessRate: 88,
-          topic: "Arithmetic"
-        },
-        {
-          number: 3,
-          correct: false,
-          points: 10,
-          difficulty: "Medium",
-          timeSpent: "3:15",
-          type: "MCQ",
-          isMock: true,
-          questionText: "What is the chemical symbol for gold?",
-          userAnswer: "Go",
-          correctAnswer: "Au",
-          averageTime: "2:20",
-          classSuccessRate: 65,
-          topic: "Chemistry"
-        },
-        {
-          number: 4,
-          correct: true,
-          points: 10,
-          difficulty: "Medium",
-          timeSpent: "2:45",
-          type: "MCQ",
-          isMock: true,
-          questionText: "Who wrote 'Romeo and Juliet'?",
-          userAnswer: "William Shakespeare",
-          correctAnswer: "William Shakespeare",
-          averageTime: "2:10",
-          classSuccessRate: 78,
-          topic: "Literature"
-        },
-        {
-          number: 5,
-          correct: false,
-          points: 10,
-          difficulty: "Hard",
-          timeSpent: "4:10",
-          type: "Fill-up",
-          isMock: true,
-          questionText: "The process of converting a gas to a liquid is called ____.",
-          userAnswer: "solidification",
-          correctAnswer: "condensation",
-          averageTime: "3:45",
-          classSuccessRate: 42,
-          topic: "Physics"
-        },
-        {
-          number: 6,
-          correct: true,
-          points: 10,
-          difficulty: "Medium",
-          timeSpent: "2:30",
-          type: "MCQ",
-          isMock: true,
-          questionText: "What is the largest planet in our solar system?",
-          userAnswer: "Jupiter",
-          correctAnswer: "Jupiter",
-          averageTime: "2:15",
-          classSuccessRate: 82,
-          topic: "Astronomy"
-        },
-        {
-          number: 7,
-          correct: true,
-          points: 10,
-          difficulty: "Easy",
-          timeSpent: "1:50",
-          type: "True/False",
-          isMock: true,
-          questionText: "The Great Wall of China is visible from space.",
-          userAnswer: "False",
-          correctAnswer: "False",
-          averageTime: "1:30",
-          classSuccessRate: 68,
-          topic: "Geography"
-        },
-        {
-          number: 8,
-          correct: false,
-          points: 10,
-          difficulty: "Hard",
-          timeSpent: "5:20",
-          type: "MCQ",
-          isMock: true,
-          questionText: "What is the square root of 169?",
-          userAnswer: "12",
-          correctAnswer: "13",
-          averageTime: "2:50",
-          classSuccessRate: 55,
-          topic: "Mathematics"
-        },
-        {
-          number: 9,
-          correct: true,
-          points: 10,
-          difficulty: "Medium",
-          timeSpent: "3:05",
-          type: "Fill-up",
-          isMock: true,
-          questionText: "The process of plants making their own food is called ____.",
-          userAnswer: "photosynthesis",
-          correctAnswer: "photosynthesis",
-          averageTime: "2:40",
-          classSuccessRate: 72,
-          topic: "Biology"
-        },
-        {
-          number: 10,
-          correct: true,
-          points: 10,
-          difficulty: "Medium",
-          timeSpent: "2:40",
-          type: "MCQ",
-          isMock: true,
-          questionText: "Who painted the Mona Lisa?",
-          userAnswer: "Leonardo da Vinci",
-          correctAnswer: "Leonardo da Vinci",
-          averageTime: "2:20",
-          classSuccessRate: 85,
-          topic: "Art History"
-        },
-      ];
+      return 'No question analysis data is available for this exam or attempt.';
+
     }
 
     // Create a map of question IDs to question details if exam data is available
@@ -900,11 +765,11 @@ console.log(resultData);
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 text-white py-4 shadow-md">
+    <div className="min-h-screen bg-gradient-page dark:bg-gradient-page-dark">
+      <header className="header-gradient py-4 shadow-md">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <Link href="/" className="text-2xl font-bold flex items-center">
-            <span className="bg-white text-indigo-800 rounded-lg p-1 mr-2">TA</span>
+            <span className="bg-background text-indigo-800 rounded-lg p-1 mr-2">TA</span>
             Tech Anubhavi
           </Link>
           <nav className="space-x-4">
@@ -936,7 +801,7 @@ console.log(resultData);
           </div>
 
           <Card className="mb-6 overflow-hidden border-0 shadow-lg">
-            <div className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white p-6">
+            <div className="header-gradient p-6">
               <div className="flex flex-col md:flex-row justify-between items-center">
                 <div>
                   <h1 className="text-2xl font-bold">{examTitle} {examSubject && `- ${examSubject}`}</h1>
@@ -945,16 +810,16 @@ console.log(resultData);
                   </p>
                 </div>
                 <div className="mt-4 md:mt-0">
-                  <Badge className="bg-white text-indigo-800 px-3 py-1 text-sm">
+                  <Badge className="bg-background text-indigo-800 px-3 py-1 text-sm">
                     Tech Anubhavi International School
                   </Badge>
                 </div>
               </div>
             </div>
 
-            <CardContent className="p-0">
+            <CardContent className="p-0 bg-background">
               <div className="flex flex-col md:flex-row">
-                <div className="md:w-1/2 p-6 flex flex-col items-center justify-center bg-white">
+                <div className="md:w-1/2 p-6 flex flex-col items-center justify-center bg-muted-foreground/10">
                   <div className="relative h-64 w-64">
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center">
@@ -992,7 +857,7 @@ console.log(resultData);
                     </svg>
                   </div>
                   <div className="text-center mt-4">
-                    <p className="text-slate-500">
+                    <p className="text-foreground">
                       Your score is {score >= 75 ? "above" : "below"} the class average of 76%
                     </p>
                     <p className="text-sm text-indigo-600 mt-2">
@@ -1004,83 +869,102 @@ console.log(resultData);
                   </div>
                 </div>
 
-                <div className="md:w-1/2 p-6 bg-slate-50 border-l">
+                <div className="md:w-1/2 p-6 bg-muted-foreground/10 border-l">
                   <h3 className="text-xl font-semibold mb-4 flex items-center">
                     <Trophy className="mr-2 h-5 w-5 text-yellow-500" />
                     Performance Summary
                   </h3>
 
                   <div className="grid grid-cols-2 gap-4 mb-6">
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+                    <div className="bg-background rounded-xl p-4 shadow-sm border border-slate-100">
                       <div className="flex items-center mb-2">
                         <Award className="h-5 w-5 mr-2 text-blue-500" />
                         <h4 className="font-medium">Correct Answers</h4>
                       </div>
                       <p className="text-3xl font-bold">
-                        {result?.answers && result.answers.length > 0
-                          ? `${result.answers.filter(a => a.isCorrect).length}/${result.answers.length}`
-                          : `${correct}/${total}`}
+                        {attemptData?.correctAnswers !== undefined && attemptData?.totalQuestions !== undefined
+                          ? `${attemptData.correctAnswers}/${attemptData.totalQuestions}`
+                          : result?.answers && result.answers.length > 0
+                            ? `${result.answers.filter(a => a.isCorrect).length}/${result.answers.length}`
+                            : `${correct}/${total}`}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {result?.answers && result.answers.length > 0
-                          ? `${Math.round((result.answers.filter(a => a.isCorrect).length / result.answers.length) * 100)}% accuracy`
-                          : `${Math.round((correct / total) * 100)}% accuracy`}
+                        {attemptData?.accuracy !== undefined
+                          ? `${attemptData.accuracy}% accuracy`
+                          : result?.answers && result.answers.length > 0
+                            ? `${Math.round((result.answers.filter(a => a.isCorrect).length / result.answers.length) * 100)}% accuracy`
+                            : `${Math.round((correct / total) * 100)}% accuracy`}
                       </p>
                     </div>
 
-                    <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+                    <div className="bg-background rounded-xl p-4 shadow-sm border border-slate-100">
                       <div className="flex items-center mb-2">
                         <Clock className="h-5 w-5 mr-2 text-purple-500" />
                         <h4 className="font-medium">Time Spent</h4>
                       </div>
-                      <p className="text-3xl font-bold">{mockAnalysis.timeSpent || "0:00"}</p>
+                      <p className="text-3xl font-bold">
+                        {attemptData?.timeSpent
+                          ? `${Math.floor(attemptData.timeSpent / 60)}:${(attemptData.timeSpent % 60).toString().padStart(2, '0')}`
+                          : result?.timeSpent
+                            ? `${Math.floor(result.timeSpent / 60)}:${(result.timeSpent % 60).toString().padStart(2, '0')}`
+                            : mockAnalysis.timeSpent || "0:00"}
+                      </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {result?.timeSpent
-                          ? `${Math.floor(result.timeSpent / 60)} min ${result.timeSpent % 60} sec`
-                          : mockAnalysis.timeSpent !== "0:00"
-                            ? "Estimated time"
-                            : "No time data available"}
+                        {attemptData?.timeSpent
+                          ? `${Math.floor(attemptData.timeSpent / 60)} min ${attemptData.timeSpent % 60} sec`
+                          : result?.timeSpent
+                            ? `${Math.floor(result.timeSpent / 60)} min ${result.timeSpent % 60} sec`
+                            : mockAnalysis.timeSpent !== "0:00"
+                              ? "Estimated time"
+                              : "No time data available"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-100">
+                  <div className="bg-background rounded-xl p-4 shadow-sm border border-slate-100">
                     <div className="flex items-center mb-2">
                       <Star className="h-5 w-5 mr-2 text-amber-500" />
                       <h4 className="font-medium">Points Earned</h4>
                     </div>
                     <div className="flex items-center">
                       <p className="text-3xl font-bold">
-                        {result?.answers && result.answers.length > 0
-                          ? result.answers.reduce((sum, a) => sum + (a.isCorrect ? (a.points || 10) : 0), 0)
-                          : correct * 10}
+                        {attemptData?.pointsEarned !== undefined && attemptData?.totalPossiblePoints !== undefined
+                          ? attemptData.pointsEarned
+                          : result?.answers && result.answers.length > 0
+                            ? result.answers.reduce((sum, a) => sum + (a.isCorrect ? (a.points || 10) : 0), 0)
+                            : correct * 10}
                       </p>
-                      <p className="text-slate-500 ml-2">/
-                        {result?.answers && result.answers.length > 0
-                          ? result.answers.reduce((sum, a) => sum + (a.points || 10), 0)
-                          : total * 10} points
+                      <p className="text-foreground ml-2">/
+                        {attemptData?.totalPossiblePoints !== undefined
+                          ? attemptData.totalPossiblePoints
+                          : result?.answers && result.answers.length > 0
+                            ? result.answers.reduce((sum, a) => sum + (a.points || 10), 0)
+                            : total * 10} points
                       </p>
                     </div>
                     <p className="text-sm text-muted-foreground mt-1">
-                      {result?.answers && result.answers.length > 0
-                        ? `${Math.round((result.answers.reduce((sum, a) => sum + (a.isCorrect ? (a.points || 10) : 0), 0) /
-                          result.answers.reduce((sum, a) => sum + (a.points || 10), 0)) * 100)}% of total points`
-                        : `${Math.round((correct * 10 / (total * 10)) * 100)}% of total points`}
+                      {attemptData?.pointsEarned !== undefined && attemptData?.totalPossiblePoints !== undefined && attemptData.totalPossiblePoints > 0
+                        ? `${Math.round((attemptData.pointsEarned / attemptData.totalPossiblePoints) * 100)}% of total points`
+                        : result?.answers && result.answers.length > 0
+                          ? `${Math.round((result.answers.reduce((sum, a) => sum + (a.isCorrect ? (a.points || 10) : 0), 0) /
+                            result.answers.reduce((sum, a) => sum + (a.points || 10), 0)) * 100)}% of total points`
+                          : `${Math.round((correct * 10 / (total * 10)) * 100)}% of total points`}
                     </p>
                   </div>
 
                   <div className="mt-6">
                     <h4 className="font-medium mb-2">Teacher's Feedback</h4>
-                    <div className="bg-white p-3 rounded-lg border border-slate-100 text-sm">
-                      Alex has shown good understanding of the concepts, especially in geometry. However, there's room
-                      for improvement in algebra. I recommend focusing on equation solving and algebraic expressions for
-                      better results in future exams.
+                    <div className="bg-background p-3 rounded-lg border border-slate-100 text-sm">
+                      {attemptData?.feedback?.text || result?.feedback ||
+                       "Alex has shown good understanding of the concepts, especially in geometry. However, there's room " +
+                       "for improvement in algebra. I recommend focusing on equation solving and algebraic expressions for " +
+                       "better results in future exams."}
                     </div>
                   </div>
 
                   <div className="mt-6">
                     <h4 className="font-medium mb-2">Attempt Information</h4>
-                    <div className="bg-white p-3 rounded-lg border border-slate-100">
+                    <div className="bg-background p-3 rounded-lg border border-slate-100">
                       <div className="grid grid-cols-2 gap-2">
                         <div>
                           <p className="text-sm text-muted-foreground">Current Attempt</p>
@@ -1201,7 +1085,14 @@ console.log(resultData);
 
 
             <TabsContent value="questions">
-              <QuestionAnalysis attemptId={resultId} />
+              {attemptData ? (
+                <QuestionAnalysis
+                  attemptId={resultId}
+                  initialData={attemptData.questions}
+                />
+              ) : (
+                <QuestionAnalysis attemptId={resultId} />
+              )}
             </TabsContent>
 
             <TabsContent value="comparison">
@@ -1214,7 +1105,7 @@ console.log(resultData);
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
                       <h3 className="text-lg font-medium mb-4">Score Distribution</h3>
-                      <div className="bg-white p-4 rounded-lg border border-slate-100">
+                      <div className="bg-background p-4 rounded-lg border border-slate-100">
                         <div className="h-64 flex items-end justify-around">
                           {[
                             { range: "0-50%", count: 2, color: "bg-red-500" },
@@ -1239,7 +1130,7 @@ console.log(resultData);
                             Your score: {score}%
                           </div>
                           {!result?.classRank && (
-                            <div className="mt-2 text-xs text-slate-500">
+                            <div className="mt-2 text-xs text-foreground">
                               <Info className="h-3 w-3 inline mr-1" />
                               This is simulated data. Real comparison will be available when more students complete the exam.
                             </div>
@@ -1250,7 +1141,7 @@ console.log(resultData);
 
                     <div>
                       <h3 className="text-lg font-medium mb-4">Percentile Ranking</h3>
-                      <div className="bg-white p-4 rounded-lg border border-slate-100">
+                      <div className="bg-background p-4 rounded-lg border border-slate-100">
                         <div className="mb-6">
                           <div className="flex justify-between mb-1">
                             <p className="text-sm font-medium">Your Percentile</p>
@@ -1259,7 +1150,7 @@ console.log(resultData);
                           <div className="h-3 w-full rounded-full bg-slate-100">
                             <div className="h-3 rounded-full bg-indigo-500" style={{ width: "92%" }} />
                           </div>
-                          <p className="text-xs text-slate-500 mt-1">
+                          <p className="text-xs text-foreground mt-1">
                             You performed better than 92% of your classmates
                           </p>
                         </div>
@@ -1299,9 +1190,9 @@ console.log(resultData);
 
                   <div className="mt-8">
                     <h3 className="text-lg font-medium mb-4">Attempts Comparison</h3>
-                    <div className="bg-white p-4 rounded-lg border border-slate-100">
+                    <div className="bg-background p-4 rounded-lg border border-slate-100">
                       <div className="mb-4">
-                        <p className="text-sm text-slate-500 mb-2">
+                        <p className="text-sm text-foreground mb-2">
                           Compare your performance across different attempts for this exam
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -1336,7 +1227,7 @@ console.log(resultData);
                                   // If this is the first attempt, show a message
                                   <div className="absolute inset-0 flex items-center justify-center">
                                     <div className="text-center p-4">
-                                      <p className="text-slate-500 mb-2">This is your first attempt</p>
+                                      <p className="text-foreground mb-2">This is your first attempt</p>
                                       <p className="text-sm text-slate-400">Complete more attempts to see your progress over time</p>
                                     </div>
                                   </div>
@@ -1408,7 +1299,7 @@ console.log(resultData);
             {mockAnalysis.attemptNumber < mockAnalysis.maxAttempts ? (
               <Button
                 asChild
-                className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                className="btn-gradient"
               >
                 <Link href={`/exam/${examId}`}>Retake Exam</Link>
               </Button>
@@ -1421,7 +1312,7 @@ console.log(resultData);
                 No Attempts Left
               </Button>
             )}
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild className="btn-gradient">
               <Link href="/dashboard/student">Back to Dashboard</Link>
             </Button>
           </div>

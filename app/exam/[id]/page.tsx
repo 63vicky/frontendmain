@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +20,7 @@ import { Clock, AlertCircle, CheckCircle, XCircle, HelpCircle, Loader2, AlertTri
 import { api } from "@/lib/api"
 import { authService } from "@/lib/services/auth"
 import { resultService } from "@/lib/services/result-service"
+import { attemptService } from "@/lib/services/attempt"
 import { useToast } from "@/hooks/use-toast"
 import { Exam, Question } from "@/lib/types"
 
@@ -45,8 +46,8 @@ const defaultExam = {
 }
 
 export default function ExamPage({ params }: { params: { id: string } }) {
-  // Unwrap params using React.use() to handle the Promise
-  const resolvedParams = React.use(params)
+  // Unwrap params using use() to handle the Promise
+  const resolvedParams = use(params)
   const examId = resolvedParams.id
 
   const router = useRouter()
@@ -55,15 +56,13 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [questionTime, setQuestionTime] = useState<number>(30) // Default time in seconds
   const [timeLeft, setTimeLeft] = useState<number>(30)
-  const [totalTimeLeft, setTotalTimeLeft] = useState<number>(0) // Total exam time left
-  const [isSkipping, setIsSkipping] = useState<boolean>(false)
+  // Removed isSkipping state as it's not needed
   const [adaptiveTimeReduction, setAdaptiveTimeReduction] = useState<number>(0) // For SCQ adaptive timing
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showWarning, setShowWarning] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
   const [examStarted, setExamStarted] = useState(false)
   const [fillUpAnswer, setFillUpAnswer] = useState("")
-  const [visitedQuestions, setVisitedQuestions] = useState<Set<number>>(new Set([0])) // Start with first question as visited
   const [exam, setExam] = useState<Exam | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -74,10 +73,12 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     timeSpent?: number;
   }>>([])
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<Date | null>(null)
+  const [currentAttemptId, setCurrentAttemptId] = useState<string>("")
 
-  // Use refs to track timer intervals to prevent double invocation
+  // Use refs to track timer intervals and prevent double invocation
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const totalTimerRef = useRef<NodeJS.Timeout | null>(null)
+  // Use a ref to track if we're currently advancing to the next question
+  const isAdvancingRef = useRef<boolean>(false)
 
   // Fetch exam data
   useEffect(() => {
@@ -97,20 +98,18 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         }
 
         // Fetch exam details
-        const examResponse = await api.get<Exam>(`/exams/${examId}`)
-        if (!examResponse.data) {
+        const examResponse = await api.get<any>(`/exams/${examId}`)
+        if (!examResponse || !examResponse.data) {
           throw new Error("Exam not found")
         }
 
-        const examData = examResponse.data.data
+        // Cast the response data to Exam type
+        const examData = (examResponse.data as any).data as Exam
 
         // Check if exam is available
         const now = new Date()
         const startDate = new Date(examData.startDate)
         const endDate = new Date(examData.endDate)
-
-        console.log("Exam status:", examData.status);
-
 
         if (examData.status !== "active" || now < startDate || now > endDate) {
           toast({
@@ -128,8 +127,6 @@ export default function ExamPage({ params }: { params: { id: string } }) {
           const attemptsResponse = await api.get<any[]>(`/attempts/exam/${examId}`);
           const studentAttempts = attemptsResponse.data || [];
 
-          console.log(`Student has ${studentAttempts.length} attempts for exam ${examId}`);
-
           if (examData.attempts && studentAttempts.length >= examData.attempts.max) {
             toast({
               title: "Maximum Attempts Reached",
@@ -140,14 +137,17 @@ export default function ExamPage({ params }: { params: { id: string } }) {
             return
           }
         } catch (attemptsError) {
-          console.error("Error fetching student attempts:", attemptsError);
           // Continue without checking attempts - the backend will enforce the limit
+          toast({
+            title: "Error",
+            description: "Failed to check exam attempts. Please try again.",
+            variant: "destructive"
+          })
         }
 
         setExam(examData)
         setLoading(false)
       } catch (error) {
-        console.error("Error fetching exam:", error)
         setError("Failed to load exam data. Please try again later.")
         setLoading(false)
         toast({
@@ -160,17 +160,6 @@ export default function ExamPage({ params }: { params: { id: string } }) {
 
     fetchExam()
   }, [examId, router, toast])
-
-  // Calculate total exam time based on per-question timers or use the exam duration
-  const calculateTotalExamTime = () => {
-    if (!exam || !exam.questions || exam.questions.length === 0) {
-      return exam?.duration ? exam.duration * 60 : 60 * 60; // Default to exam duration or 60 minutes
-    }
-
-    return exam.questions.reduce((total: number, question: any) => {
-      return total + (question.time || (question.type === "multiple-choice" ? 30 : 10))
-    }, 0)
-  }
 
   // Format time left as MM:SS
   const formatTimeLeft = (seconds: number) => {
@@ -197,48 +186,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     return question.time || baseTime
   }
 
-  // Get time color based on remaining time percentage
-  const getTimeColor = (current: number, total: number) => {
-    const percentLeft = (current / total) * 100
-
-    if (percentLeft > 50) return "bg-green-600"
-    if (percentLeft > 25) return "bg-yellow-500"
-    return "bg-red-500"
-  }
-
-  // Start the total exam timer
-  useEffect(() => {
-    if (!examStarted) return
-
-    // Calculate total exam time
-    const totalTime = calculateTotalExamTime()
-    setTotalTimeLeft(totalTime)
-
-    // Clear any existing timer
-    if (totalTimerRef.current) {
-      clearInterval(totalTimerRef.current)
-    }
-
-    // Start the total timer
-    totalTimerRef.current = setInterval(() => {
-      setTotalTimeLeft((prev) => {
-        if (prev <= 1) {
-          if (totalTimerRef.current) {
-            clearInterval(totalTimerRef.current)
-          }
-          handleSubmit()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => {
-      if (totalTimerRef.current) {
-        clearInterval(totalTimerRef.current)
-      }
-    }
-  }, [examStarted])
+  // No total exam timer - using per-question timers only
 
   // Timer effect for individual question timing
   useEffect(() => {
@@ -261,6 +209,8 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         const existingIndex = prev.findIndex(t => t.questionId === questionId)
         if (existingIndex === -1) {
           // Add new timing
+          console.log(`Adding timing for question ${questionId} at ${now.toISOString()}`);
+          // Add new timing
           return [...prev, {
             questionId,
             startTime: now
@@ -282,11 +232,45 @@ export default function ExamPage({ params }: { params: { id: string } }) {
           if (questionTimerRef.current) {
             clearInterval(questionTimerRef.current)
           }
+
+          // No total timer to update
+
+          // Record end time for current question
+          if (currentQuestionStartTime && exam?.questions && exam.questions[currentQuestion] && exam.questions[currentQuestion]._id) {
+            const now = new Date();
+            const questionId = exam.questions[currentQuestion]._id;
+            const timeSpent = Math.floor((now.getTime() - currentQuestionStartTime.getTime()) / 1000);
+
+            console.log(`Time over for question ${questionId}. Recording end time: ${now.toISOString()}, time spent: ${timeSpent}s`);
+
+            setQuestionTimings(prev => {
+              return prev.map(timing => {
+                if (timing.questionId === questionId) {
+                  return {
+                    ...timing,
+                    endTime: now,
+                    timeSpent
+                  };
+                }
+                return timing;
+              });
+            });
+          }
+
           // Auto-skip or submit if time runs out
-          if (exam && exam.questions && currentQuestion < exam.questions.length - 1) {
-            handleNext()
-          } else {
-            handleSubmit()
+          // Use isAdvancingRef to prevent double advancement
+          if (!isAdvancingRef.current) {
+            isAdvancingRef.current = true;
+            if (exam && exam.questions && currentQuestion < exam.questions.length - 1) {
+              handleNext()
+            } else {
+              // Force submit when time expires for the last question
+              handleSubmit(true)
+            }
+            // Reset the advancing flag after a short delay
+            setTimeout(() => {
+              isAdvancingRef.current = false;
+            }, 500);
           }
           return 0
         }
@@ -299,9 +283,16 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         clearInterval(questionTimerRef.current)
       }
     }
+  // We're using isAdvancingRef to prevent double advancement, so we can safely include all dependencies
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentQuestion, examStarted, adaptiveTimeReduction, exam])
 
   const handleAnswerChange = (value: string) => {
+    // Prevent updating state if the value hasn't changed
+    if (answers[currentQuestion] === value) {
+      return;
+    }
+
     setAnswers((prev) => ({
       ...prev,
       [currentQuestion]: value,
@@ -324,12 +315,28 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   const handleNext = () => {
     if (!exam || !exam.questions) return;
 
+    // Set the advancing flag to prevent double advancement
+    isAdvancingRef.current = true;
+
     if (currentQuestion < exam.questions.length - 1) {
       // Record end time for current question
       if (currentQuestionStartTime && exam.questions[currentQuestion]._id) {
         const now = new Date();
         const questionId = exam.questions[currentQuestion]._id;
+
+        // Calculate time spent on this question
         const timeSpent = Math.floor((now.getTime() - currentQuestionStartTime.getTime()) / 1000);
+
+        console.log(`Moving from question ${questionId}. Recording end time: ${now.toISOString()}, time spent: ${timeSpent}s`);
+
+        // Check if we went over the allocated time for this question
+        const allocatedTime = getQuestionTime(currentQuestion);
+        const timeOverflow = Math.max(0, timeSpent - allocatedTime);
+
+        // Log time overflow but no total timer to update
+        if (timeOverflow > 0) {
+          console.log(`Time overflow: ${timeOverflow}s.`);
+        }
 
         setQuestionTimings(prev => {
           return prev.map(timing => {
@@ -345,13 +352,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         });
       }
 
-      // Mark current question as visited/locked
-      setVisitedQuestions((prev) => {
-        const updated = new Set(prev)
-        updated.add(currentQuestion)
-        updated.add(currentQuestion + 1) // Also mark the next question as visited
-        return updated
-      })
+      // No need to track visited questions anymore
 
       // If current question is not multiple-choice and was skipped, increase adaptive time reduction
       const currentQuestionType = exam.questions[currentQuestion].type
@@ -365,14 +366,22 @@ export default function ExamPage({ params }: { params: { id: string } }) {
       if (exam.questions[currentQuestion + 1].type === "fill-in-blank") {
         setFillUpAnswer(answers[currentQuestion + 1] || "")
       }
+
+      // Reset the advancing flag after a short delay
+      setTimeout(() => {
+        isAdvancingRef.current = false;
+      }, 500);
+    } else {
+      // Reset the advancing flag if we're not advancing
+      isAdvancingRef.current = false;
     }
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (force: boolean = false) => {
     if (!exam || !exam.questions) return;
 
-    // Check if all questions are answered
-    if (Object.keys(answers).length < exam.questions.length) {
+    // Check if all questions are answered, unless force=true
+    if (!force && Object.keys(answers).length < exam.questions.length) {
       setShowWarning(true)
       return
     }
@@ -414,9 +423,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
           isCorrect = false // Default to false, will be evaluated by teacher
         }
 
-        // Add to score if correct
+        // Add to score if correct - always use actual points
         if (isCorrect) {
-          score += question.points || 10
+          score += question.points
         }
 
         totalAnswered++
@@ -428,9 +437,18 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         }
       })
 
-      // Calculate percentage
-      const totalPoints = exam.questions.reduce((total, question) => total + (question.points || 10), 0);
+      // Calculate percentage - always use actual points
+      let totalPoints = exam.questions.reduce((total, question) => total + question.points, 0);
+
+      // Validate total points calculation
+      if (totalPoints === 0) {
+        console.warn('Warning: Total points calculated as zero. Using fallback calculation.');
+        totalPoints = exam.questions.length * 10; // Fallback calculation
+      }
+
+      // Calculate percentage score
       const percentage = Math.round((score / totalPoints) * 100);
+      console.log(`Score: ${score}/${totalPoints} = ${percentage}%`);
 
       // Record end time for the last question
       if (currentQuestionStartTime && exam.questions[currentQuestion]._id) {
@@ -468,28 +486,68 @@ export default function ExamPage({ params }: { params: { id: string } }) {
       });
 
       // Prepare submission data for the backend
-      const submissionData = {
-        examId: examId,
-        answers: formattedAnswers,
-        score: percentage, // Send percentage as score
-        timeSpent: calculateTotalExamTime() - totalTimeLeft,
-        questionTimings: finalQuestionTimings
-      };
+      const formattedAnswersForSubmission = formattedAnswers.map(answer => {
+        // For descriptive questions, we need to handle them specially
+        // Just check if the answer is long (more than 100 characters) to determine if it's descriptive
+        const isDescriptiveQuestion = answer.answer && answer.answer.length > 100 ? true : false;
 
-      // Submit to the student-specific endpoint using the result service
-      const result = await resultService.submitStudentResult(submissionData)
+        return {
+          questionId: answer.questionId,
+          selectedOption: answer.answer,
+          // Include a flag to indicate this is a descriptive answer
+          isDescriptive: isDescriptiveQuestion
+        };
+      });
 
-      if (result) {
-        // Redirect to results page
-        setTimeout(() => {
-          router.push(`/result/${result._id}`)
-        }, 1000)
+      // Calculate total time spent from question timings
+      const timeSpentValue = finalQuestionTimings.reduce((total, timing) => {
+        return total + (timing.timeSpent || 0);
+      }, 0);
+
+
+      // First, submit the attempt to update its status to 'completed'
+      if (!currentAttemptId) {
+        throw new Error("No active attempt ID found");
+      }
+
+      // Submit to the attempt endpoint to update the attempt status
+      const updatedAttempt = await attemptService.submitAttempt(
+        currentAttemptId,
+        formattedAnswersForSubmission,
+        finalQuestionTimings,
+        timeSpentValue
+      );
+
+
+      if (updatedAttempt) {
+        // Log the attempt ID for debugging
+        console.log('Exam submitted successfully. Attempt ID:', updatedAttempt._id || updatedAttempt.id);
+
+        // Check if the response includes a resultId (from our backend modification)
+        if (updatedAttempt.resultId) {
+          console.log('Result ID found in response:', updatedAttempt.resultId);
+
+          // Redirect to results page with result ID
+          setTimeout(() => {
+            router.push(`/result/${updatedAttempt.resultId}`);
+          }, 1000);
+        } else {
+          // Fallback to using attempt ID if no result ID is available
+          console.log('No Result ID found in response, using attempt ID instead');
+
+          // Make sure we have a valid ID before redirecting
+          const attemptId = updatedAttempt._id || updatedAttempt.id;
+          if (attemptId) {
+            router.push(`/result/${attemptId}`);
+          } else {
+            // Fallback to dashboard if no ID is available
+            router.push("/dashboard/student?tab=results");
+          }
+        }
       } else {
-        throw new Error("Failed to submit exam")
+        throw new Error("Failed to submit exam");
       }
     } catch (error) {
-      console.error("Error submitting exam:", error)
-
       // Check if the error indicates the exam has reached maximum attempts
       if (error instanceof Error && error.message.includes("Maximum attempts reached")) {
         toast({
@@ -531,19 +589,20 @@ export default function ExamPage({ params }: { params: { id: string } }) {
 
   const startExam = async () => {
     try {
-      // Create a new attempt in the backend
-      const response = await api.post('/attempts', { examId });
-      console.log('Created new attempt:', response.data);
+      // Create a new attempt in the backend using the attempt service
+      const attempt = await attemptService.startAttempt(examId);
+
+      // Store the attempt ID for later use when submitting
+      const attemptId = attempt._id || attempt.id;
+      console.log('Started attempt with ID:', attemptId);
+
+      // Store the attempt ID in state
+      setCurrentAttemptId(attemptId);
 
       // Start the exam UI
       setExamStarted(true);
       setShowInstructions(false);
-
-      // Start the total exam timer
-      setTotalTimeLeft(calculateTotalExamTime());
     } catch (error: any) {
-      console.error('Error starting exam:', error);
-
       // Check if the error is due to maximum attempts reached
       if (error.response && error.response.data && error.response.data.message === 'Maximum attempts reached') {
         toast({
@@ -567,7 +626,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   // Get current question or use a placeholder if exam is not loaded
   const question = exam && exam.questions && exam.questions[currentQuestion]
     ? exam.questions[currentQuestion]
-    : { text: "Loading question...", type: "multiple-choice", options: [], difficulty: "Medium" }
+    : { text: "Loading question...", type: "multiple-choice", options: [], difficulty: "Medium", points: 10 }
 
   // Calculate progress
   const progress = exam && exam.questions
@@ -575,25 +634,15 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     : 0
 
 
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100">
-      <header className="bg-gradient-to-r from-indigo-800 to-indigo-700 text-white py-4 shadow-md">
+    <div className="min-h-screen bg-gradient-page">
+      <header className="header-gradient py-4 shadow-md">
         <div className="container mx-auto px-4 flex justify-between items-center">
           <h1 className="text-2xl font-bold flex items-center">
             <span className="bg-white text-indigo-800 rounded-lg p-1 mr-2">TA</span>
             Tech Anubhavi
           </h1>
-          {examStarted && (
-            <div className="flex items-center gap-4">
-              <div
-                className={`${getTimeColor(totalTimeLeft, calculateTotalExamTime())} px-4 py-2 rounded-md flex items-center shadow-md`}
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                <span className="font-mono font-bold">Total Time Left: {formatTimeLeft(totalTimeLeft)}</span>
-              </div>
-            </div>
-          )}
+          {/* No total timer display */}
         </div>
       </header>
 
@@ -620,7 +669,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         ) : showInstructions ? (
           <div className="max-w-4xl mx-auto">
             <Card className="mb-4 border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white">
+              <CardHeader className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-foreground">
                 <div className="flex justify-between items-center">
                   <div>
                     <CardTitle className="text-2xl">{exam?.title || "Exam"}</CardTitle>
@@ -639,18 +688,18 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     <ul className="list-disc pl-5 space-y-2">
                       <li>
                         This exam contains <strong>{exam?.questions?.length || 0} questions</strong> of various types (Multiple Choice,
-                        Fill-in-the-blanks, True/False).
+                        Short Answer, Descriptive).
                       </li>
                       <li>
-                        Total time allowed is <strong>{formatTimeLeft(calculateTotalExamTime())}</strong> based on the
-                        sum of all question timers.
+                        Each question has its own time limit. You must answer within the time limit for each question.
                       </li>
                       <li>
-                        Each question is worth <strong>10 points</strong>, for a total of {(exam?.questions?.length || 0) * 10}{" "}
-                        points.
+                        Each question has its own point value based on difficulty, for a total of {
+                          exam?.questions?.reduce((total, q) => total + (q.points || 0), 0) || 0
+                        } points.
                       </li>
                       <li>You cannot go back to previous questions once answered.</li>
-                      <li>The exam will automatically submit when the time expires.</li>
+                      <li>Each question will automatically advance when its time expires.</li>
                       <li>You can see your progress in the navigation bar at the bottom.</li>
                       <li>Questions will be randomized to prevent cheating.</li>
                       <li>
@@ -664,13 +713,13 @@ export default function ExamPage({ params }: { params: { id: string } }) {
 
                   <div className="bg-indigo-50 p-4 rounded-lg">
                     <h3 className="text-lg font-medium mb-2 text-indigo-800">Exam Details</h3>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4 text-indigo-600">
                       <div>
-                        <p className="text-sm text-indigo-600">Subject</p>
-                        <p className="font-medium">{exam?.subject || "N/A"}</p>
+                        <p className="text-sm text-muted/80">Subject</p>
+                        <p className="font-medium ">{exam?.subject || "N/A"}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-indigo-600">Class</p>
+                        <p className="text-sm text-muted/80">Class</p>
                         <p className="font-medium">
                           {typeof exam?.class === 'object' ?
                             `${exam.class.name} ${exam.class.section || ''}`.trim() :
@@ -678,19 +727,19 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-indigo-600">Total Time</p>
-                        <p className="font-medium">{formatTimeLeft(calculateTotalExamTime())}</p>
+                        <p className="text-sm text-muted/80">Question Time</p>
+                        <p className="font-medium">Varies by question type</p>
                       </div>
                       <div>
-                        <p className="text-sm text-indigo-600">Total Questions</p>
+                        <p className="text-sm text-muted/80">Total Questions</p>
                         <p className="font-medium">{exam?.questions?.length || 0}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-indigo-600">Maximum Score</p>
-                        <p className="font-medium">{(exam?.questions?.length || 0) * 10} points</p>
+                        <p className="text-sm text-muted/80">Maximum Score</p>
+                        <p className="font-medium">{exam?.questions?.reduce((total, q) => total + (q.points || 0), 0) || 0} points</p>
                       </div>
                       <div>
-                        <p className="text-sm text-indigo-600">Passing Score</p>
+                        <p className="text-sm text-muted/80">Passing Score</p>
                         <p className="font-medium">60%</p>
                       </div>
                     </div>
@@ -702,8 +751,8 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       <div>
                         <h4 className="font-medium text-yellow-800">Important Note</h4>
                         <p className="text-yellow-700 text-sm">
-                          Once you start the exam, the timer will begin and cannot be paused. Make sure you have a
-                          stable internet connection and enough time to complete the exam.
+                          Once you start the exam, each question's timer will begin and cannot be paused. Make sure you have a
+                          stable internet connection and enough time to complete all questions.
                         </p>
                       </div>
                     </div>
@@ -716,7 +765,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                 </Button>
                 <Button
                   onClick={startExam}
-                  className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                  className="btn-gradient"
                 >
                   Start Exam
                 </Button>
@@ -726,7 +775,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         ) : (
           <div className="max-w-4xl mx-auto">
             <Card className="mb-4 border-0 shadow-lg overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-white">
+              <CardHeader className="bg-gradient-to-r from-indigo-700 to-indigo-800 text-foreground">
                 <div className="flex justify-between items-center">
                   <div>
                     <CardTitle>{exam?.title || "Exam"}</CardTitle>
@@ -738,13 +787,13 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     </CardDescription>
                   </div>
                   <div className="flex flex-col items-end gap-2">
-                    <Badge className="bg-white text-indigo-800 px-3 py-1">10 points</Badge>
+                    <Badge className="bg-white text-indigo-800 px-3 py-1">{question.points || 0} points</Badge>
                     <div
                       className={`px-3 py-1 rounded-md text-sm font-medium ${
                         timeLeft < 5 ? "bg-red-500" : timeLeft < 10 ? "bg-yellow-500" : "bg-green-500"
                       }`}
                     >
-                      Question Time: {timeLeft}s
+                      Question Time: {formatTimeLeft(timeLeft)}
                     </div>
                   </div>
                 </div>
@@ -804,7 +853,6 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                           <div
                             key={optionKey}
                             className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                            onClick={() => handleAnswerChange(optionId)}
                           >
                             <RadioGroupItem value={optionId} id={`option-${optionKey}`} />
                             <Label htmlFor={`option-${optionKey}`} className="flex-1 cursor-pointer">
@@ -867,7 +915,6 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     >
                       <div
                         className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => handleAnswerChange("True")}
                       >
                         <RadioGroupItem value="True" id="true" />
                         <Label htmlFor="true" className="flex-1 cursor-pointer">
@@ -876,7 +923,6 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       </div>
                       <div
                         className="flex items-center space-x-2 border rounded-lg p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                        onClick={() => handleAnswerChange("False")}
                       >
                         <RadioGroupItem value="False" id="false" />
                         <Label htmlFor="false" className="flex-1 cursor-pointer">
@@ -897,26 +943,23 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                   {exam && exam.questions && currentQuestion < exam.questions.length - 1 && (
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setIsSkipping(true)
-                        handleNext()
-                      }}
+                      onClick={handleNext}
                     >
                       Skip
                     </Button>
                   )}
                   {exam && exam.questions && currentQuestion === exam.questions.length - 1 ? (
                     <Button
-                      onClick={handleSubmit}
+                      onClick={() => handleSubmit()}
                       disabled={isSubmitting}
-                      className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800"
+                      className="status-success"
                     >
                       {isSubmitting ? "Submitting..." : "Submit Exam"}
                     </Button>
                   ) : (
                     <Button
                       onClick={handleNext}
-                      className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                      className="btn-gradient"
                     >
                       Next
                     </Button>
@@ -948,7 +991,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     variant={answers[index] ? "default" : "outline"}
                     className={`h-10 w-10 ${
                       answers[index]
-                        ? "bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700"
+                        ? "btn-gradient"
                         : index < currentQuestion
                           ? "border-slate-300 bg-slate-100 text-slate-400" // Styling for locked questions
                           : "border-slate-300"
@@ -1002,9 +1045,10 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       onClick={() => {
                         setShowWarning(false)
                         setIsSubmitting(true)
-                        handleSubmit()
+                        // Force submission even with unanswered questions
+                        handleSubmit(true)
                       }}
-                      className="bg-amber-500 hover:bg-amber-600 text-white"
+                      className="status-warning"
                     >
                       Submit Anyway
                     </Button>
@@ -1015,10 +1059,10 @@ export default function ExamPage({ params }: { params: { id: string } }) {
           </div>
         )}
         {timeLeft <= 5 && (
-          <div className="absolute bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-md animate-pulse shadow-lg">
+          <div className="absolute bottom-4 right-4 status-error px-4 py-2 rounded-md animate-pulse shadow-lg">
             <div className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              <span>Time running out!</span>
+              <span>Question time running out! {formatTimeLeft(timeLeft)} left</span>
             </div>
           </div>
         )}
@@ -1046,3 +1090,5 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     </div>
   )
 }
+
+

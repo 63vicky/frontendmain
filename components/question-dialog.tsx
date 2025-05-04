@@ -44,18 +44,12 @@ export function QuestionDialog({
   existingQuestions = [],
   initialTab = "create"
 }: QuestionDialogProps) {
-  console.log("QuestionDialog initialTab:", initialTab); // Debug log
-
   const [loading, setLoading] = useState(false)
   const [questionType, setQuestionType] = useState<'multiple-choice' | 'short-answer' | 'descriptive'>('multiple-choice')
   const [activeTab, setActiveTab] = useState<"create" | "existing">(initialTab)
   const [searchQuery, setSearchQuery] = useState("")
   const [addedQuestions, setAddedQuestions] = useState<string[]>([])
 
-  // Debug log when activeTab changes
-  useEffect(() => {
-    console.log("activeTab changed to:", activeTab);
-  }, [activeTab]);
   const { toast } = useToast()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
   const [subjects, setSubjects] = useState<string[]>([])
@@ -96,14 +90,10 @@ export function QuestionDialog({
 
   // Reset state when dialog closes or opens
   useEffect(() => {
-    console.log("Dialog open state changed:", open, "initialTab:", initialTab); // Debug log
-
     if (!open) {
-      console.log("Dialog closing, resetting state"); // Debug log
       setSearchQuery("")
       setAddedQuestions([])
     } else {
-      console.log("Dialog opening, setting activeTab to:", initialTab); // Debug log
       // Set the active tab to initialTab when the dialog opens
       setActiveTab(initialTab)
     }
@@ -123,13 +113,6 @@ export function QuestionDialog({
   const isQuestionAdded = (question: Question) => {
     if (!exam || !question._id) return false;
 
-    console.log('Checking if question is added:', {
-      questionText: question.text,
-      questionExamIds: question.examIds || [],
-      currentExamId: exam._id,
-      addedQuestions
-    });
-
     // Check if the question is in the existing questions array
     const isInExistingQuestions = existingQuestions.some(q => q._id === question._id);
 
@@ -142,16 +125,6 @@ export function QuestionDialog({
     return isInExistingQuestions || isInExamIds || isAddedInCurrentSession;
   }
 
-  // Debug existing questions when they change
-  useEffect(() => {
-    console.log('Existing questions updated:', existingQuestions);
-  }, [existingQuestions]);
-
-  // Debug when exam changes
-  useEffect(() => {
-    console.log('Exam changed:', exam);
-  }, [exam]);
-
   // Fetch dynamic data for dropdowns
   useEffect(() => {
     const fetchDynamicData = async () => {
@@ -163,7 +136,6 @@ export function QuestionDialog({
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         });
-        console.log("subjectsResponse", subjectsResponse);
         if (subjectsResponse.ok) {
           const data = await subjectsResponse.json();
           setSubjects(data.data.map((subject: any) => subject.name));
@@ -180,7 +152,11 @@ export function QuestionDialog({
           setClasses(data.data.map((cls: any) => cls.name));
         }
       } catch (error) {
-        console.error('Error fetching dynamic data:', error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch dynamic data",
+          variant: "destructive"
+        })
       }
     };
 
@@ -292,7 +268,6 @@ export function QuestionDialog({
         refetchQuestions()
       }
     } catch (error) {
-      console.error('Error adding question:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to add question',
@@ -308,8 +283,6 @@ export function QuestionDialog({
 
     setLoading(true)
     try {
-      console.log('Adding question to exam:', { question, examId: exam._id });
-
       const response = await fetch(`${API_URL}/questions/${question._id}/add-to-exam`, {
         method: 'POST',
         headers: {
@@ -345,7 +318,6 @@ export function QuestionDialog({
         refetchQuestions()
       }
     } catch (error) {
-      console.error('Error adding question:', error);
       toast({
         title: 'Error',
         description: error instanceof Error ? error.message : 'Failed to add question',
@@ -385,7 +357,6 @@ export function QuestionDialog({
   // Force set the active tab to "existing" when the dialog opens
   useEffect(() => {
     if (open) {
-      console.log("Dialog is open, forcing activeTab to 'existing'");
       setActiveTab("existing");
     }
   }, [open]);

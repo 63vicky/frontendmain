@@ -50,6 +50,11 @@ const examAttemptSchema = new mongoose.Schema({
         type: String,
         required: true
       },
+      // Add a separate field for descriptive answers that can handle longer text
+      descriptiveAnswer: {
+        type: String,
+        default: ''
+      },
       isCorrect: {
         type: Boolean,
         required: true

@@ -1,3 +1,4 @@
+import { toast } from 'sonner';
 import { api } from '../api';
 import { User } from '../types';
 
@@ -93,28 +94,24 @@ export const authService = {
   async logout(): Promise<void> {
     if (typeof window !== 'undefined') {
       try {
-        // Log the start of the logout process
-        console.log('Starting logout process...');
-        
-        // Log current state
-        console.log('Before logout - localStorage:', Object.keys(localStorage));
-        console.log('Before logout - cookies:', document.cookie);
+       
         
         // Try to call the server logout endpoint
         try {
           await api.post('/auth/logout');
-          console.log('Server logout successful');
         } catch (error) {
-          console.error('Server logout failed:', error);
+          toast({
+            title: "Error",
+            description: "Failed to logout. Please try again.",
+            variant: "destructive"
+          })
         }
         
         // Clear localStorage
         localStorage.clear();
-        console.log('localStorage cleared');
         
         // Clear sessionStorage
         sessionStorage.clear();
-        console.log('sessionStorage cleared');
         
         // Clear all cookies
         const cookies = document.cookie.split(';');
@@ -125,14 +122,10 @@ export const authService = {
           }
         });
         
-        // Log state after clearing
-        console.log('After logout - localStorage:', Object.keys(localStorage));
-        console.log('After logout - cookies:', document.cookie);
-        
         // Redirect to login page
         window.location.href = '/login';
       } catch (error) {
-        console.error('Error during logout:', error);
+        console.error('Logout error:', error);
         // Force redirect even if there's an error
         window.location.href = '/login';
       }
@@ -142,7 +135,6 @@ export const authService = {
   getCurrentUser(): User | null {
     if (typeof window === 'undefined') return null;
     const userStr = localStorage.getItem('user');
-    console.log('Current user:', userStr);
     return userStr ? JSON.parse(userStr) : null;
   },
 

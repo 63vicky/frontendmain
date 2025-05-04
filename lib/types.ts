@@ -115,6 +115,7 @@ export interface ExamAttempt {
     percentile: number
   }
   status?: string
+  resultId?: string // Added to support the result ID returned from the backend
 }
 
 // Result types

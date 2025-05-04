@@ -11,7 +11,8 @@ const {
   getUploadedRecords,
   downloadStudentTemplate,
   downloadTeacherTemplate,
-  downloadQuestionTemplate
+  downloadQuestionTemplate,
+  cleanupUploads
 } = require('../controllers/bulkUploadController');
 
 // Apply authentication middleware to all routes
@@ -53,6 +54,13 @@ router.post(
   authorize('principal', 'teacher'),
   upload.single('file'),
   uploadQuestions
+);
+
+// Manually trigger cleanup of old uploads (principal only)
+router.post(
+  '/cleanup',
+  authorize('principal'),
+  cleanupUploads
 );
 
 module.exports = router;

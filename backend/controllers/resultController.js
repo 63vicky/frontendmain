@@ -18,16 +18,51 @@ const getResults = async (req, res) => {
 const getResultById = async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await Result.findById(id)
-      .populate('examId', 'title subject')
-      .populate('studentId', 'name email')
-      .populate('createdBy', 'name');
+    console.log('Fetching result with ID:', id);
 
-    if (!result) {
-      return res.status(404).json({ message: 'Result not found' });
+    // Validate that the ID is a valid MongoDB ObjectId
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      console.error('Invalid result ID format:', id);
+      return res.status(400).json({ message: 'Invalid result ID format' });
     }
 
-    res.json(result);
+    try {
+      const result = await Result.findById(id)
+        .populate('examId', 'title subject')
+        .populate('studentId', 'name email')
+        .populate('createdBy', 'name');
+
+      if (!result) {
+        console.error('Result not found with ID:', id);
+
+        // Try to find if there are any results for this user
+        if (req.user && req.user._id) {
+          const userResults = await Result.find({ studentId: req.user._id })
+            .sort({ createdAt: -1 })
+            .limit(5);
+
+          if (userResults && userResults.length > 0) {
+            console.log('Found recent results for user:', userResults.map(r => r._id));
+            return res.status(404).json({
+              message: 'Result not found',
+              suggestedResults: userResults.map(r => ({
+                _id: r._id,
+                examId: r.examId,
+                createdAt: r.createdAt
+              }))
+            });
+          }
+        }
+
+        return res.status(404).json({ message: 'Result not found' });
+      }
+
+      console.log('Result found:', result._id);
+      res.json(result);
+    } catch (findError) {
+      console.error('Error finding result:', findError);
+      res.status(500).json({ message: 'Error finding result', error: findError.message });
+    }
   } catch (error) {
     console.error('Get result by id error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -138,7 +173,7 @@ const getStudentResults = async (req, res) => {
 
     // Get all results for this student
     const studentResults = await Result.find({ studentId })
-      .populate('examId', 'title subject')
+      .populate('examId', 'title subject attempts.max')
       .populate('createdBy', 'name');
 
     res.json(studentResults);
@@ -276,17 +311,33 @@ const submitStudentResult = async (req, res) => {
       studentId: req.user._id,
       attemptNumber,
       marks: score,
+      percentage: score, // Store the percentage score as well
       grade,
       feedback: '', // Will be filled by teacher later
       createdBy: req.user._id // Student is the creator of this result
     });
 
-    await newResult.save();
+    try {
+      // Save the result and log the ID for debugging
+      const savedResult = await newResult.save();
+      console.log('Result saved successfully with ID:', savedResult._id);
 
-    // No need to update the global attempts counter
-    // We're tracking attempts per student instead
+      // Verify the result was saved by fetching it back
+      const verifiedResult = await Result.findById(savedResult._id);
 
-    res.status(201).json(newResult);
+      if (!verifiedResult) {
+        console.error('Failed to verify saved result with ID:', savedResult._id);
+        return res.status(500).json({ message: 'Failed to save result properly' });
+      }
+
+      console.log('Result verified successfully with ID:', verifiedResult._id);
+
+      // Return the saved result with its ID
+      res.status(201).json(savedResult);
+    } catch (saveError) {
+      console.error('Error saving result:', saveError);
+      res.status(500).json({ message: 'Failed to save result', error: saveError.message });
+    }
   } catch (error) {
     console.error('Submit student result error:', error);
     res.status(500).json({ message: 'Internal server error' });

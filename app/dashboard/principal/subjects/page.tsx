@@ -577,7 +577,7 @@ export default function SubjectManagement() {
                             cls.section.toLowerCase().includes(classSearchQuery.toLowerCase())
                           )
                           .map((cls) => (
-                            <div key={cls._id} className="flex items-center space-x-2 p-2 hover:bg-slate-100 rounded-md">
+                            <div key={cls._id} className="flex items-center space-x-2 p-2 hover:bg-muted rounded-md">
                               <input
                                 type="checkbox"
                                 id={`class-${cls._id}`}
