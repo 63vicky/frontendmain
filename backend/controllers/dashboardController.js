@@ -102,11 +102,34 @@ const getClassPerformance = async (req, res) => {
           }
         }
       },
+      // Add lookup to get class details
+      {
+        $lookup: {
+          from: 'classes',
+          localField: '_id',
+          foreignField: '_id',
+          as: 'classDetails'
+        }
+      },
       {
         $project: {
-          class: '$_id',
+          // Format class name with section if available
+          class: {
+            $cond: {
+              if: { $gt: [{ $size: '$classDetails' }, 0] },
+              then: {
+                $concat: [
+                  { $arrayElemAt: ['$classDetails.name', 0] },
+                  ' ',
+                  { $arrayElemAt: ['$classDetails.section', 0] }
+                ]
+              },
+              else: { $toString: '$_id' } // Fallback to ID as string if class not found
+            }
+          },
+          classId: '$_id', // Keep the original ID for reference
           totalStudents: { $size: '$totalStudents' },
-          score: { $divide: ['$totalScore', '$count'] },
+          score: { $round: [ {$divide: ['$totalScore', '$count'] }, 2]},
           passPercentage: { $multiply: [{ $divide: ['$totalPassed', '$count'] }, 100] },
           subjectScores: {
             $map: {

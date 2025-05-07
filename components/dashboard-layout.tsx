@@ -111,9 +111,9 @@ function DashboardContent({
           icon: <GraduationCap className="h-5 w-5" />,
         },
         {
-          name: "Class Management",
-          href: `/dashboard/${role}/classes`,
-          icon: <School className="h-5 w-5" />,
+          name: "Exam Analytics",
+          href: `/dashboard/${role}?tab=exams`,
+          icon: <BarChart3 className="h-5 w-5" />,
         },
         {
           name: "Subject Management",
@@ -121,10 +121,10 @@ function DashboardContent({
           icon: <BookOpenCheck className="h-5 w-5" />,
         },
         {
-          name: "Exam Analytics",
-          href: `/dashboard/${role}?tab=exams`,
-          icon: <BarChart3 className="h-5 w-5" />,
-        },
+          name: "Class Management",
+          href: `/dashboard/${role}/classes`,
+          icon: <School className="h-5 w-5" />,
+        },        
         {
           name: "Results",
           href: `/dashboard/${role}/results`,
@@ -161,15 +161,15 @@ function DashboardContent({
           icon: <PlusCircle className="h-5 w-5" />,
         },
         {
-          name: "Question Bank",
-          href: `/dashboard/${role}/questions`,
-          icon: <BookOpen className="h-5 w-5" />,
-        },
-        {
           name: "My Students",
           href: `/dashboard/${role}?tab=students`,
           icon: <GraduationCap className="h-5 w-5" />,
         },
+        {
+          name: "Question Bank",
+          href: `/dashboard/${role}/questions`,
+          icon: <BookOpen className="h-5 w-5" />,
+        },        
         {
           name: "Class Management",
           href: `/dashboard/${role}/classes`,
@@ -196,11 +196,6 @@ function DashboardContent({
       return [
         ...baseItems.slice(0, 1),
         {
-          name: "My Classes",
-          href: `/dashboard/${role}/classes`,
-          icon: <School className="h-5 w-5" />,
-        },
-        {
           name: "Available Exams",
           href: `/dashboard/${role}?tab=exams`,
           icon: <BookOpen className="h-5 w-5" />,
@@ -209,6 +204,11 @@ function DashboardContent({
           name: "My Results",
           href: `/dashboard/${role}?tab=results`,
           icon: <FileText className="h-5 w-5" />,
+        },
+        {
+          name: "My Classes",
+          href: `/dashboard/${role}/classes`,
+          icon: <School className="h-5 w-5" />,
         },
         {
           name: "Notifications",

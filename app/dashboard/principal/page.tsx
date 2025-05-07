@@ -165,7 +165,7 @@ function PrincipalDashboardContent() {
                               <p className="text-sm font-medium">{item.score}%</p>
                             </div>
                             <div className="h-2 w-full rounded-full bg-slate-100">
-                              <div className="h-2 rounded-full bg-slate-700" style={{ width: `${item.score}%` }} />
+                              <div className={`h-2 rounded-full ${item.score >= 85 ? "bg-green-500" : item.score >= 70 ? "bg-blue-500" : item.score >= 50 ? "bg-yellow-500" : "bg-red-500"}`} style={{ width: `${item.score}%` }} />
                             </div>
                           </div>
                         ))}

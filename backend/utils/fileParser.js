@@ -222,7 +222,21 @@ exports.validateTeacherData = async (data) => {
 
       // Process classes if provided
       const classIds = [];
-      if (entry.classes) {
+
+      // Check for className and section
+      if (entry.className && entry.section) {
+        const className = entry.className.toString().trim();
+        const section = entry.section.toString().trim();
+        const classKey = (className + '-' + section).toLowerCase();
+        const classId = classMap.get(classKey);
+
+        if (classId) {
+          classIds.push(classId);
+        }
+      }
+
+      // For backward compatibility, also check the old 'classes' field
+      if (entry.classes && classIds.length === 0) {
         const classNames = entry.classes.split(',').map(c => c.trim());
 
         for (const className of classNames) {
@@ -301,7 +315,8 @@ exports.generateTeacherTemplate = () => {
       name: 'Jane Smith',
       email: 'jane.smith@example.com',
       subject: 'Mathematics',
-      classes: '8A, 9B, 10A',
+      className: '8',
+      section: 'A',
       password: 'password123',
       status: 'active'
     }

@@ -9,9 +9,11 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { toast } from "sonner"
 import DashboardLayout from "@/components/dashboard-layout"
-import { ArrowLeft, FileText, CheckCircle, AlertCircle, Search, Download } from "lucide-react"
+import { ArrowLeft, FileText, CheckCircle, AlertCircle, Search } from "lucide-react"
 import { bulkUploadApi } from "@/lib/api"
 import { BulkUpload } from "@/lib/types"
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
 export default function BulkUploadDetails() {
   const params = useParams()
@@ -31,8 +33,103 @@ export default function BulkUploadDetails() {
 
         // Extract records from the processedData field
         if (response.data.processedData && response.data.processedData.records) {
-          setRecords(response.data.processedData.records)
-          setFilteredRecords(response.data.processedData.records)
+          // Fetch classes and subjects to map IDs to names
+          let classes = []
+          let subjects = []
+
+          try {
+            // Fetch classes
+            const classesResponse = await fetch(`${API_URL}/classes`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`
+              }
+            })
+            if (classesResponse.ok) {
+              const classesData = await classesResponse.json()
+              classes = classesData.data || []
+              console.log("Fetched classes:", classes)
+            } else {
+              console.error("Failed to fetch classes:", classesResponse.statusText)
+            }
+
+            // Fetch subjects
+            const subjectsResponse = await fetch(`${API_URL}/subjects`, {
+              headers: {
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              }
+            })
+            if (subjectsResponse.ok) {
+              const subjectsData = await subjectsResponse.json()
+              subjects = subjectsData.data || []
+              console.log("Fetched subjects:", subjects)
+            } else {
+              console.error("Failed to fetch subjects:", subjectsResponse.statusText)
+            }
+          } catch (err) {
+            console.error("Error fetching classes or subjects:", err)
+          }
+
+          // Create maps for quick lookup
+          const classMap = new Map()
+          const subjectMap = new Map()
+
+          // Add class mappings
+          if (classes && classes.length > 0) {
+            classes.forEach((c: any) => {
+              if (c && c._id) {
+                classMap.set(c._id, `${c.name}-${c.section}`)
+              }
+            })
+          }
+
+          // Add subject mappings
+          if (subjects && subjects.length > 0) {
+            subjects.forEach((s: any) => {
+              if (s && s._id) {
+                subjectMap.set(s._id, s.name)
+              }
+            })
+          }
+
+          console.log("Class map size:", classMap.size)
+          console.log("Subject map size:", subjectMap.size)
+
+          // Process records to replace IDs with names
+          const processedRecords = response.data.processedData.records.map((record: any) => {
+            const newRecord = { ...record }
+
+            // Log the record for debugging
+            console.log("Processing record:", newRecord)
+
+            // Replace class ID with class name if it exists and is an ID
+            if (newRecord.class && typeof newRecord.class === 'string' && newRecord.class.match(/^[0-9a-fA-F]{24}$/)) {
+              const className = classMap.get(newRecord.class)
+              console.log(`Mapping class ID ${newRecord.class} to ${className || 'not found'}`)
+              newRecord.class = className || newRecord.class
+            }
+
+            // Replace subject ID with subject name if it exists and is an ID
+            if (newRecord.subject && typeof newRecord.subject === 'string' && newRecord.subject.match(/^[0-9a-fA-F]{24}$/)) {
+              const subjectName = subjectMap.get(newRecord.subject)
+              console.log(`Mapping subject ID ${newRecord.subject} to ${subjectName || 'not found'}`)
+              newRecord.subject = subjectName || newRecord.subject
+            }
+
+            // Also check for classes array (for teachers)
+            if (newRecord.classes && Array.isArray(newRecord.classes)) {
+              newRecord.classes = newRecord.classes.map((classId: string) => {
+                if (typeof classId === 'string' && classId.match(/^[0-9a-fA-F]{24}$/)) {
+                  return classMap.get(classId) || classId
+                }
+                return classId
+              }).join(', ')
+            }
+
+            return newRecord
+          })
+
+          setRecords(processedRecords)
+          setFilteredRecords(processedRecords)
         }
       } catch (error) {
         console.error("Error fetching bulk upload details:", error)
@@ -85,7 +182,12 @@ export default function BulkUploadDetails() {
     const allKeys = new Set<string>()
     filteredRecords.forEach(record => {
       Object.keys(record).forEach(key => {
-        if (key !== 'status' && key !== 'errors') { // Exclude status and errors as they'll be shown separately
+        // Exclude status, errors, password, className, and section fields
+        if (key !== 'status' &&
+            key !== 'errors' &&
+            key !== 'password' &&
+            key !== 'className' &&
+            key !== 'section') {
           allKeys.add(key)
         }
       })
@@ -209,7 +311,11 @@ export default function BulkUploadDetails() {
                               </TableCell>
                               {getColumnHeaders().map((header) => (
                                 <TableCell key={header}>
-                                  {record[header] !== undefined ? String(record[header]) : '-'}
+                                  {record[header] !== undefined ?
+                                    // If the field is a password field (for extra safety), display asterisks
+                                    header.toLowerCase().includes('password') ?
+                                    '********' : String(record[header])
+                                    : '-'}
                                 </TableCell>
                               ))}
                               <TableCell>

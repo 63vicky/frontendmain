@@ -71,8 +71,10 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
   const [teachers, setTeachers] = useState<Teacher[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [classes, setClasses] = useState<Class[]>([])
+  const [subjects, setSubjects] = useState<{_id: string, name: string}[]>([])
   const [loading, setLoading] = useState(true)
   const [loadingClasses, setLoadingClasses] = useState(true)
+  const [loadingSubjects, setLoadingSubjects] = useState(true)
   const [addingUser, setAddingUser] = useState(false)
   const [updatingUser, setUpdatingUser] = useState(false)
   const [deletingUser, setDeletingUser] = useState(false)
@@ -87,15 +89,55 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
   })
   const [editData, setEditData] = useState<Teacher | Student | null>(null)
   const { toast } = useToast()
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
   useEffect(() => {
     if (userType === 'teacher') {
       loadTeachers()
+      loadSubjects() // Load subjects when in teacher management
     } else {
       loadStudents()
     }
     loadClasses()
   }, [userType])
+
+  const loadSubjects = async () => {
+    try {
+      setLoadingSubjects(true)
+      const response = await fetch(`${API_URL}/subjects`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setSubjects(data.data || [])
+
+        // Update teachers with subject names
+        setTeachers(prevTeachers =>
+          prevTeachers.map(teacher => {
+            if (typeof teacher.subject === 'string' && teacher.subject.match(/^[0-9a-fA-F]{24}$/)) {
+              const subjectObj = data.data.find((s: any) => s._id === teacher.subject)
+              return {
+                ...teacher,
+                subject: subjectObj ? subjectObj.name : teacher.subject
+              }
+            }
+            return teacher
+          })
+        )
+      }
+    } catch (error) {
+      console.error("Error loading subjects:", error)
+      toast({
+        title: "Error",
+        description: "Failed to load subjects",
+        variant: "destructive"
+      })
+    } finally {
+      setLoadingSubjects(false)
+    }
+  }
 
   const loadClasses = async () => {
     try {
@@ -118,6 +160,17 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
       setLoading(true)
       const data = await teacherApi.getAllTeachers()
       setTeachers(data)
+
+      // After loading teachers, load subjects to map IDs to names
+      if (data && data.length > 0) {
+        const hasSubjectIds = data.some((teacher: Teacher) =>
+          typeof teacher.subject === 'string' && teacher.subject.match(/^[0-9a-fA-F]{24}$/)
+        )
+
+        if (hasSubjectIds) {
+          loadSubjects()
+        }
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -535,7 +588,12 @@ export default function UserManagement({ userType, teacherView = false }: UserMa
                 <TableCell>{user.email}</TableCell>
                 {userType === "teacher" ? (
                   <>
-                    <TableCell>{(user as Teacher).subject}</TableCell>
+                    <TableCell>
+                      {/* Display subject name instead of ID */}
+                      {typeof (user as Teacher).subject === 'string' &&
+                       (user as Teacher).subject.match(/^[0-9a-fA-F]{24}$/) ?
+                        'Loading...' : (user as Teacher).subject}
+                    </TableCell>
                     <TableCell>
                       {(user as Teacher).classes.map(classId => {
                         const classObj = classes.find(c => c._id === classId);

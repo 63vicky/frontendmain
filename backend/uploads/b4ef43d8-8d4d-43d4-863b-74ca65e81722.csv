@@ -1,0 +1,4 @@
+name,email,password,subject,className,section,status
+John Smith,john.smith@example.com,password123,Mathematics,10A,A,active
+Mary Johnson,mary.johnson@example.com,password123,Science,8A,A,active
+Robert Brown,robert.brown@example.com,password123,English,12A,A,active

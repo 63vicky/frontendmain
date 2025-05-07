@@ -65,7 +65,8 @@ const bulkUploadSchema = new mongoose.Schema({
     default: Date.now
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  suppressReservedKeysWarning: true
 });
 
 // Create indexes for faster queries
