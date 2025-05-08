@@ -9,14 +9,16 @@ const {
   deleteResult,
   getStudentResults,
   getClassPerformance,
-  submitStudentResult
+  submitStudentResult,
+  getExamResults
 } = require('../controllers/resultController');
 
 // Protected routes
 router.get('/', authenticate, getResults);
-router.get('/:id', authenticate, getResultById);
+router.get('/exam/:examId', authenticate, getExamResults);
 router.get('/student/:studentId', authenticate, getStudentResults);
 router.get('/class/:classId/performance', authenticate, getClassPerformance);
+router.get('/:id', authenticate, getResultById);
 router.post('/', authenticate, authorize(['teacher', 'principal']), createResult);
 router.put('/:id', authenticate, authorize(['teacher', 'principal']), updateResult);
 router.delete('/:id', authenticate, authorize(['teacher', 'principal']), deleteResult);

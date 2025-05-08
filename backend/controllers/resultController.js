@@ -4,9 +4,31 @@ const User = require('../models/User');
 
 const getResults = async (req, res) => {
   try {
+    // Fetch results with deep population of related fields
     const results = await Result.find()
-      .populate('examId', 'title subject')
-      .populate('studentId', 'name email');
+      .populate({
+        path: 'examId',
+        select: 'title subject class startDate endDate createdAt createdBy',
+        populate: [
+          {
+            path: 'class',
+            select: 'name section'
+          },
+          {
+            path: 'createdBy',
+            select: 'name email'
+          }
+        ]
+      })
+      .populate({
+        path: 'studentId',
+        select: 'name email class rollNo',
+        populate: {
+          path: 'class',
+          select: 'name section'
+        }
+      })
+      .populate('createdBy', 'name email');
 
     res.json(results);
   } catch (error) {
@@ -28,9 +50,29 @@ const getResultById = async (req, res) => {
 
     try {
       const result = await Result.findById(id)
-        .populate('examId', 'title subject')
-        .populate('studentId', 'name email')
-        .populate('createdBy', 'name');
+        .populate({
+          path: 'examId',
+          select: 'title subject class startDate endDate createdAt createdBy',
+          populate: [
+            {
+              path: 'class',
+              select: 'name section'
+            },
+            {
+              path: 'createdBy',
+              select: 'name email'
+            }
+          ]
+        })
+        .populate({
+          path: 'studentId',
+          select: 'name email class rollNo',
+          populate: {
+            path: 'class',
+            select: 'name section'
+          }
+        })
+        .populate('createdBy', 'name email');
 
       if (!result) {
         console.error('Result not found with ID:', id);
@@ -173,8 +215,21 @@ const getStudentResults = async (req, res) => {
 
     // Get all results for this student
     const studentResults = await Result.find({ studentId })
-      .populate('examId', 'title subject attempts.max')
-      .populate('createdBy', 'name');
+      .populate({
+        path: 'examId',
+        select: 'title subject class attempts startDate endDate createdAt createdBy',
+        populate: [
+          {
+            path: 'class',
+            select: 'name section'
+          },
+          {
+            path: 'createdBy',
+            select: 'name email'
+          }
+        ]
+      })
+      .populate('createdBy', 'name email');
 
     res.json(studentResults);
   } catch (error) {
@@ -344,6 +399,41 @@ const submitStudentResult = async (req, res) => {
   }
 };
 
+// Get results by exam ID
+const getExamResults = async (req, res) => {
+  try {
+    const { examId } = req.params;
+
+    // Validate that the ID is a valid MongoDB ObjectId
+    if (!examId.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid exam ID format' });
+    }
+
+    // Check if exam exists
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    // Get all results for this exam
+    const examResults = await Result.find({ examId })
+      .populate({
+        path: 'studentId',
+        select: 'name email class rollNo',
+        populate: {
+          path: 'class',
+          select: 'name section'
+        }
+      })
+      .populate('createdBy', 'name email');
+
+    res.json(examResults);
+  } catch (error) {
+    console.error('Get exam results error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
+
 module.exports = {
   getResults,
   getResultById,
@@ -352,5 +442,6 @@ module.exports = {
   deleteResult,
   getStudentResults,
   getClassPerformance,
-  submitStudentResult
+  submitStudentResult,
+  getExamResults
 };

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,88 +8,150 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import DashboardLayout from "@/components/dashboard-layout"
-import { Search, Download, Eye, BarChart3, FileText } from "lucide-react"
+import { Search, Download, Eye, BarChart3, FileText, Loader2, X } from "lucide-react"
+import { resultService } from "@/lib/services/result-service"
+import { authService } from "@/lib/services/auth"
+import { useToast } from "@/hooks/use-toast"
+import Link from "next/link"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogClose,
+} from "@/components/ui/dialog"
+
+// Helper function to extract class name from exam
+const getClassNameFromExam = (examData: any): string => {
+  if (!examData) return 'Unknown Class';
+
+  // If class is a string, use it directly
+  if (typeof examData.class === 'string') {
+    return examData.class;
+  }
+
+  // If class is an object (reference to Class document), use the name property
+  if (examData.class && typeof examData.class === 'object') {
+    return examData.class.name
+      ? `${examData.class.name} ${examData.class.section || ''}`
+      : 'Unknown Class';
+  }
+
+  return 'Unknown Class';
+};
+
+// Helper function to extract teacher name from exam
+const getTeacherNameFromExam = (examData: any): string => {
+  if (!examData) return 'Unknown Teacher';
+
+  // If createdBy is an object, use the name property
+  if (examData.createdBy && typeof examData.createdBy === 'object') {
+    return examData.createdBy.name || 'Unknown Teacher';
+  }
+
+  return 'Unknown Teacher';
+};
 
 export default function ResultsManagement() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedClass, setSelectedClass] = useState("all")
   const [selectedSubject, setSelectedSubject] = useState("all")
+  const [examResults, setExamResults] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedExam, setSelectedExam] = useState<any>(null)
+  const [examStudentResults, setExamStudentResults] = useState<any[]>([])
+  const [loadingStudentResults, setLoadingStudentResults] = useState(false)
+  const { toast } = useToast()
 
-  // Mock data
-  const examResults = [
-    {
-      id: 1,
-      name: "Mathematics - Chapter 3",
-      class: "Class 8",
-      subject: "Mathematics",
-      date: "Apr 25, 2025",
-      students: 32,
-      avgScore: 76,
-      highestScore: 95,
-      lowestScore: 45,
-      teacher: "John Smith",
-    },
-    {
-      id: 2,
-      name: "Science - Quiz 4",
-      class: "Class 8",
-      subject: "Science",
-      date: "Apr 28, 2025",
-      students: 30,
-      avgScore: 82,
-      highestScore: 98,
-      lowestScore: 60,
-      teacher: "Sarah Johnson",
-    },
-    {
-      id: 3,
-      name: "English - Grammar Test",
-      class: "Class 8",
-      subject: "English",
-      date: "May 5, 2025",
-      students: 31,
-      avgScore: 79,
-      highestScore: 94,
-      lowestScore: 55,
-      teacher: "Michael Brown",
-    },
-    {
-      id: 4,
-      name: "History - Chapter 4",
-      class: "Class 9",
-      subject: "History",
-      date: "Apr 20, 2025",
-      students: 28,
-      avgScore: 74,
-      highestScore: 92,
-      lowestScore: 48,
-      teacher: "Emily Davis",
-    },
-    {
-      id: 5,
-      name: "Mathematics - Final Exam",
-      class: "Class 10",
-      subject: "Mathematics",
-      date: "Apr 15, 2025",
-      students: 25,
-      avgScore: 72,
-      highestScore: 90,
-      lowestScore: 42,
-      teacher: "John Smith",
-    },
-    {
-      id: 6,
-      name: "Science - Final Exam",
-      class: "Class 10",
-      subject: "Science",
-      date: "Apr 10, 2025",
-      students: 25,
-      avgScore: 78,
-      highestScore: 95,
-      lowestScore: 50,
-      teacher: "Sarah Johnson",
-    },
-  ]
+  // Fetch results data
+  useEffect(() => {
+    const fetchResults = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Get current user
+        const user = authService.getCurrentUser()
+        if (!user || user.role !== "principal") {
+          setError("You must be logged in as a principal to view this page")
+          return
+        }
+
+        // Fetch all results
+        const resultsData = await resultService.getResults()
+
+        // Group results by exam to calculate statistics
+        const examMap = new Map()
+
+        // Process each result
+        resultsData.forEach((result: any) => {
+          // Skip if no valid exam data
+          if (!result.examId || typeof result.examId !== 'object') return
+
+          const examId = result.examId._id
+
+          // If this is the first result for this exam, initialize the exam data
+          if (!examMap.has(examId)) {
+            examMap.set(examId, {
+              id: examId,
+              name: result.examId.title || 'Unknown Exam',
+              class: getClassNameFromExam(result.examId),
+              subject: result.examId.subject || 'Unknown Subject',
+              date: result.examId.startDate
+                ? new Date(result.examId.startDate).toLocaleDateString()
+                : (result.examId.createdAt
+                  ? new Date(result.examId.createdAt).toLocaleDateString()
+                  : 'Unknown Date'),
+              teacher: getTeacherNameFromExam(result.examId),
+              students: 0,
+              scores: [],
+              totalMarks: 0
+            })
+          }
+
+          // Update exam statistics
+          const examData = examMap.get(examId)
+          examData.students++
+          examData.scores.push(result.marks || 0)
+          examData.totalMarks = Math.max(examData.totalMarks, result.marks || 0)
+        })
+
+        // Calculate statistics for each exam
+        const processedExams = Array.from(examMap.values()).map(exam => {
+          const scores = exam.scores
+          const avgScore = scores.length > 0
+            ? Math.round(scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length)
+            : 0
+          const highestScore = scores.length > 0 ? Math.max(...scores) : 0
+          const lowestScore = scores.length > 0 ? Math.min(...scores) : 0
+
+          return {
+            ...exam,
+            avgScore,
+            highestScore,
+            lowestScore,
+            scores: undefined // Remove the scores array from the final object
+          }
+        })
+
+        setExamResults(processedExams)
+      } catch (error) {
+        console.error("Error fetching results:", error)
+        setError("Failed to load results. Please try again later.")
+        toast({
+          title: "Error",
+          description: "Failed to load results. Please try again later.",
+          variant: "destructive"
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchResults()
+  }, [toast])
 
   // Filter results based on search query, class, and subject
   const filteredResults = examResults.filter(
@@ -99,6 +161,64 @@ export default function ResultsManagement() {
       (selectedClass === "all" || result.class === selectedClass) &&
       (selectedSubject === "all" || result.subject === selectedSubject),
   )
+
+  // Function to handle viewing exam results
+  const handleViewExamResults = async (exam: any) => {
+    try {
+      setSelectedExam(exam);
+      setLoadingStudentResults(true);
+
+      // Fetch all results for this exam
+      const examId = exam.id;
+      console.log("Fetching results for exam ID:", examId);
+      const results = await resultService.getExamResults(examId);
+      console.log("Results fetched:", results);
+
+      // Process results for display
+      const processedResults = results.map((result: any) => {
+        // Get student name
+        const studentName = result.studentId && typeof result.studentId === 'object'
+          ? result.studentId.name || 'Unknown Student'
+          : 'Unknown Student';
+
+        // Calculate score
+        const score = result.marks || 0;
+        const totalMarks = result.totalMarks || 100;
+        const percentage = Math.round((score / totalMarks) * 100);
+
+        // Determine status
+        let status = 'Failed';
+        if (percentage >= 40) {
+          status = 'Passed';
+        }
+
+        return {
+          id: result._id,
+          studentId: typeof result.studentId === 'object' ? result.studentId._id : result.studentId,
+          student: studentName,
+          score,
+          totalMarks,
+          percentage,
+          status,
+          submittedAt: result.submittedAt || result.endTime || result.createdAt,
+          date: result.submittedAt || result.endTime || result.createdAt
+            ? new Date(result.submittedAt || result.endTime || result.createdAt).toLocaleDateString()
+            : 'Unknown Date'
+        };
+      });
+
+      setExamStudentResults(processedResults);
+    } catch (error) {
+      console.error("Error fetching exam results:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load student results for this exam.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoadingStudentResults(false);
+    }
+  };
 
   // Group results by class
   const resultsByClass = examResults.reduce(
@@ -114,7 +234,8 @@ export default function ResultsManagement() {
 
   // Calculate class averages
   const classAverages = Object.entries(resultsByClass).map(([className, results]) => {
-    const avgScore = Math.round(results.reduce((sum, result) => sum + result.avgScore, 0) / results.length)
+    const resultsArray = results as any[];
+    const avgScore = Math.round(resultsArray.reduce((sum: number, result: any) => sum + result.avgScore, 0) / resultsArray.length)
     return { class: className, avgScore }
   })
 
@@ -175,10 +296,9 @@ export default function ResultsManagement() {
                       className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="all">All Classes</option>
-                      <option value="Class 7">Class 7</option>
-                      <option value="Class 8">Class 8</option>
-                      <option value="Class 9">Class 9</option>
-                      <option value="Class 10">Class 10</option>
+                      {Array.from(new Set(examResults.map(result => result.class))).map(cls => (
+                        <option key={cls} value={cls}>{cls}</option>
+                      ))}
                     </select>
                     <select
                       value={selectedSubject}
@@ -186,76 +306,97 @@ export default function ResultsManagement() {
                       className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <option value="all">All Subjects</option>
-                      <option value="Mathematics">Mathematics</option>
-                      <option value="Science">Science</option>
-                      <option value="English">English</option>
-                      <option value="History">History</option>
+                      {Array.from(new Set(examResults.map(result => result.subject))).map(subject => (
+                        <option key={subject} value={subject}>{subject}</option>
+                      ))}
                     </select>
                   </div>
                 </div>
 
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Exam Name</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Students</TableHead>
-                      <TableHead>Avg. Score</TableHead>
-                      <TableHead>Highest</TableHead>
-                      <TableHead>Lowest</TableHead>
-                      <TableHead>Teacher</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredResults.length === 0 ? (
+                {loading ? (
+                  <div className="flex justify-center items-center py-8">
+                    <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                    <span className="ml-2 text-muted-foreground">Loading results...</span>
+                  </div>
+                ) : error ? (
+                  <div className="text-center py-8 text-red-500">
+                    <p>{error}</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => window.location.reload()}
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
-                          No results found
-                        </TableCell>
+                        <TableHead>Exam Name</TableHead>
+                        <TableHead>Class</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Students</TableHead>
+                        <TableHead>Avg. Score</TableHead>
+                        <TableHead>Highest</TableHead>
+                        <TableHead>Lowest</TableHead>
+                        <TableHead>Teacher</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
-                    ) : (
-                      filteredResults.map((result) => (
-                        <TableRow key={result.id}>
-                          <TableCell className="font-medium">{result.name}</TableCell>
-                          <TableCell>{result.class}</TableCell>
-                          <TableCell>{result.subject}</TableCell>
-                          <TableCell>{result.date}</TableCell>
-                          <TableCell>{result.students}</TableCell>
-                          <TableCell>
-                            <Badge
-                              variant="outline"
-                              className={
-                                result.avgScore >= 85
-                                  ? "border-green-500 text-green-700 bg-green-50"
-                                  : result.avgScore >= 70
-                                    ? "border-blue-500 text-blue-700 bg-blue-50"
-                                    : result.avgScore >= 50
-                                      ? "border-yellow-500 text-yellow-700 bg-yellow-50"
-                                      : "border-red-500 text-red-700 bg-red-50"
-                              }
-                            >
-                              {result.avgScore}%
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{result.highestScore}%</TableCell>
-                          <TableCell>{result.lowestScore}%</TableCell>
-                          <TableCell>{result.teacher}</TableCell>
-                          <TableCell className="text-right">
-                            <Button variant="ghost" size="sm">
-                              <Eye className="h-4 w-4 text-indigo-500" />
-                            </Button>
-                            <Button variant="ghost" size="sm">
-                              <Download className="h-4 w-4 text-indigo-500" />
-                            </Button>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredResults.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
+                            No results found
                           </TableCell>
                         </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
+                      ) : (
+                        filteredResults.map((result) => (
+                          <TableRow key={result.id}>
+                            <TableCell className="font-medium">{result.name}</TableCell>
+                            <TableCell>{result.class}</TableCell>
+                            <TableCell>{result.subject}</TableCell>
+                            <TableCell>{result.date}</TableCell>
+                            <TableCell>{result.students}</TableCell>
+                            <TableCell>
+                              <Badge
+                                variant="outline"
+                                className={
+                                  result.avgScore >= 85
+                                    ? "border-green-500 text-green-700 bg-green-50"
+                                    : result.avgScore >= 70
+                                      ? "border-blue-500 text-blue-700 bg-blue-50"
+                                      : result.avgScore >= 50
+                                        ? "border-yellow-500 text-yellow-700 bg-yellow-50"
+                                        : "border-red-500 text-red-700 bg-red-50"
+                                }
+                              >
+                                {result.avgScore}%
+                              </Badge>
+                            </TableCell>
+                            <TableCell>{result.highestScore}%</TableCell>
+                            <TableCell>{result.lowestScore}%</TableCell>
+                            <TableCell>{result.teacher}</TableCell>
+                            <TableCell className="text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleViewExamResults(result)}
+                              >
+                                <Eye className="h-4 w-4 text-indigo-500" />
+                              </Button>
+                              <Button variant="ghost" size="sm">
+                                <Download className="h-4 w-4 text-indigo-500" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -346,7 +487,7 @@ export default function ResultsManagement() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {results.map((result) => (
+                          {(results as any[]).map((result: any) => (
                             <TableRow key={result.id}>
                               <TableCell className="font-medium">{result.name}</TableCell>
                               <TableCell>{result.subject}</TableCell>
@@ -555,6 +696,78 @@ export default function ResultsManagement() {
           </TabsContent>
         </Tabs>
       </div>
+      {/* Exam Results Dialog */}
+      <Dialog open={selectedExam !== null} onOpenChange={(open) => !open && setSelectedExam(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          
+          <DialogHeader>
+            <div className="flex justify-between items-center">
+              <DialogTitle className="text-xl">
+                {selectedExam?.name} - Student Results
+              </DialogTitle>
+            </div>
+            <DialogDescription>
+              {selectedExam?.class} | {selectedExam?.subject} | {selectedExam?.date}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingStudentResults ? (
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+              <span className="ml-2 text-muted-foreground">Loading student results...</span>
+            </div>
+          ) : examStudentResults.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              No student results found for this exam
+            </div>
+          ) : (
+            <div className="mt-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Percentage</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {examStudentResults.map((result) => (
+                    <TableRow key={result.id}>
+                      <TableCell className="font-medium">{result.student}</TableCell>
+                      <TableCell>
+                        {result.score}/{result.totalMarks}
+                      </TableCell>
+                      <TableCell>{result.percentage}%</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            result.status === "Passed"
+                              ? "bg-green-500"
+                              : "bg-red-500"
+                          }
+                        >
+                          {result.status}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{result.date}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link href={`/result/${result.id}`}>
+                            <Eye className="h-4 w-4 text-indigo-500" />
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   )
 }

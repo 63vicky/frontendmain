@@ -17,6 +17,7 @@ interface ExamStats {
   title: string;
   subject: string;
   class: string;
+  classId?: string; // Add classId to store the actual class ID
   teacher: string;
   students: number;
   avgScore: number;
@@ -36,8 +37,13 @@ interface OverallStats {
   averageScore: number;
 }
 
+interface ClassFilter {
+  id: string;
+  name: string;
+}
+
 interface Filters {
-  classes: string[];
+  classes: ClassFilter[];
   subjects: string[];
 }
 
@@ -57,21 +63,32 @@ export default function ExamAnalytics() {
     classes: [],
     subjects: []
   });
+  const [allFilters, setAllFilters] = useState<Filters>({
+    classes: [],
+    subjects: []
+  });
 
+  // Fetch all filter options on initial load
+  useEffect(() => {
+    fetchAllFilterOptions();
+  }, []);
+
+  // Fetch filtered data when filters change
   useEffect(() => {
     fetchExamAnalytics();
   }, [selectedClass, selectedSubject]);
 
-  const fetchExamAnalytics = async () => {
+  // Fetch all filter options (classes and subjects)
+  const fetchAllFilterOptions = async () => {
     try {
       setLoading(true);
       const response = await fetch(
-        `${API_URL}/exam-analytics?class=${selectedClass}&subject=${selectedSubject}`,
+        `${API_URL}/exam-analytics?class=all&subject=all`,
         {
           credentials: 'include'
         }
       );
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch exam analytics');
       }
@@ -80,6 +97,50 @@ export default function ExamAnalytics() {
       setExamStats(data.exams);
       setOverallStats(data.stats);
       setFilters(data.filters);
+      setAllFilters(data.filters); // Save all filter options
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch filter options",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch exam analytics with selected filters
+  const fetchExamAnalytics = async () => {
+    // Skip if this is the initial load (fetchAllFilterOptions will handle it)
+    if (allFilters.classes.length === 0 && selectedClass === 'all' && selectedSubject === 'all') {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch(
+        `${API_URL}/exam-analytics?class=${selectedClass}&subject=${selectedSubject}`,
+        {
+          credentials: 'include'
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch exam analytics');
+      }
+
+      const data = await response.json();
+      setExamStats(data.exams);
+      setOverallStats(data.stats);
+
+      // The backend now always returns the complete list of filter options
+      // that have associated exams, so we can just use them directly
+      setFilters(data.filters);
+
+      // If this is the first load with filters, also update allFilters
+      if (allFilters.classes.length === 0) {
+        setAllFilters(data.filters);
+      }
     } catch (error) {
       toast({
         title: "Error",
@@ -93,16 +154,21 @@ export default function ExamAnalytics() {
 
   // Filter data based on selected class and subject
   const filteredData = examStats.filter((exam) => {
-    const classMatch = selectedClass === "all" || exam.class === selectedClass;
+    // For class filtering, we need to handle both the case where the backend has already filtered
+    // and the case where we need to filter on the frontend
+    const classMatch = selectedClass === "all" ||
+      // If the backend didn't filter properly, we might need to filter by display name
+      exam.classId === selectedClass;
+
     const subjectMatch = selectedSubject === "all" || exam.subject === selectedSubject;
     return classMatch && subjectMatch;
   });
 
   // Group data by status
-  const activeExams = filteredData.filter((exam) => 
+  const activeExams = filteredData.filter((exam) =>
     exam.status === "active" || exam.status === "scheduled"
   );
-  const completedExams = filteredData.filter((exam) => 
+  const completedExams = filteredData.filter((exam) =>
     exam.status === "completed"
   );
 
@@ -165,9 +231,10 @@ export default function ExamAnalytics() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Classes</SelectItem>
+                {/* Show classes from filters (backend now always returns all relevant classes) */}
                 {filters.classes.map((cls) => (
-                  <SelectItem key={cls} value={cls}>
-                    {cls}
+                  <SelectItem key={cls.id} value={cls.id}>
+                    {cls.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -181,6 +248,7 @@ export default function ExamAnalytics() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Subjects</SelectItem>
+                {/* Show subjects from filters (backend now always returns all relevant subjects) */}
                 {filters.subjects.map((subject) => (
                   <SelectItem key={subject} value={subject}>
                     {subject}

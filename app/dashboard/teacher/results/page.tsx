@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,7 +15,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import DashboardLayout from "@/components/dashboard-layout"
-import { Search, Download, Eye, Printer, Mail, MessageSquare } from "lucide-react"
+import { Search, Download, Eye, Printer, Mail, MessageSquare, Loader2 } from "lucide-react"
+import { resultService } from "@/lib/services/result-service"
+import { authService } from "@/lib/services/auth"
+import { useToast } from "@/hooks/use-toast"
 
 export default function TeacherResults() {
   const [searchQuery, setSearchQuery] = useState("")
@@ -23,98 +26,130 @@ export default function TeacherResults() {
   const [selectedExam, setSelectedExam] = useState("all")
   const [showResultDialog, setShowResultDialog] = useState(false)
   const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [results, setResults] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
 
-  // Mock data
-  const results = [
-    {
-      id: 1,
-      student: "Alex Johnson",
-      class: "Class 8A",
-      exam: "Mathematics - Chapter 3 Quiz",
-      score: 85,
-      totalMarks: 100,
-      date: "2025-05-01",
-      status: "Passed",
-      attempts: 1,
-    },
-    {
-      id: 2,
-      student: "Maria Garcia",
-      class: "Class 8A",
-      exam: "Mathematics - Chapter 3 Quiz",
-      score: 92,
-      totalMarks: 100,
-      date: "2025-05-01",
-      status: "Passed",
-      attempts: 1,
-    },
-    {
-      id: 3,
-      student: "James Wilson",
-      class: "Class 8B",
-      exam: "Science - Quiz 4",
-      score: 78,
-      totalMarks: 100,
-      date: "2025-05-02",
-      status: "Passed",
-      attempts: 2,
-    },
-    {
-      id: 4,
-      student: "Sarah Chen",
-      class: "Class 8B",
-      exam: "Science - Quiz 4",
-      score: 88,
-      totalMarks: 100,
-      date: "2025-05-02",
-      status: "Passed",
-      attempts: 1,
-    },
-    {
-      id: 5,
-      student: "Raj Patel",
-      class: "Class 9A",
-      exam: "History - Chapter 4 Quiz",
-      score: 65,
-      totalMarks: 100,
-      date: "2025-05-03",
-      status: "Passed",
-      attempts: 3,
-    },
-    {
-      id: 6,
-      student: "Emma Thompson",
-      class: "Class 9A",
-      exam: "History - Chapter 4 Quiz",
-      score: 45,
-      totalMarks: 100,
-      date: "2025-05-03",
-      status: "Failed",
-      attempts: 2,
-    },
-    {
-      id: 7,
-      student: "Mohammed Ali",
-      class: "Class 9B",
-      exam: "Geography - Map Quiz",
-      score: 72,
-      totalMarks: 100,
-      date: "2025-05-04",
-      status: "Passed",
-      attempts: 1,
-    },
-    {
-      id: 8,
-      student: "Sofia Rodriguez",
-      class: "Class 9B",
-      exam: "Geography - Map Quiz",
-      score: 68,
-      totalMarks: 100,
-      date: "2025-05-04",
-      status: "Passed",
-      attempts: 2,
-    },
-  ]
+// Helper function to extract class name from exam
+const getClassNameFromExam = (examData: any): string => {
+  if (!examData) return 'Unknown Class';
+
+  // If class is a string, use it directly
+  if (typeof examData.class === 'string') {
+    return examData.class;
+  }
+
+  // If class is an object (reference to Class document), use the name property
+  if (examData.class && typeof examData.class === 'object') {
+    return examData.class.name
+      ? `${examData.class.name} ${examData.class.section || ''}`
+      : 'Unknown Class';
+  }
+
+  return 'Unknown Class';
+};
+
+  // Fetch results data
+  useEffect(() => {
+    const fetchResults = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Get current user
+        const user = authService.getCurrentUser()
+        if (!user || user.role !== "teacher") {
+          setError("You must be logged in as a teacher to view this page")
+          return
+        }
+
+        // Fetch all results
+        const resultsData = await resultService.getResults()
+
+        // Transform data for display
+        const transformedResults = resultsData.map((result: any) => {
+          // Extract student name
+          const studentName = result.studentId && typeof result.studentId === 'object'
+            ? result.studentId.name
+            : 'Unknown Student'
+
+          // Extract exam details
+          const examTitle = result.examId && typeof result.examId === 'object'
+            ? result.examId.title
+            : 'Unknown Exam'
+
+          const examSubject = result.examId && typeof result.examId === 'object'
+            ? result.examId.subject
+            : ''
+
+          // Get class from student data
+          let studentClass = 'Unknown Class';
+
+          if (result.studentId && typeof result.studentId === 'object') {
+            if (typeof result.studentId.class === 'string') {
+              // If class is a string, use it directly
+              studentClass = result.studentId.class || 'Unknown Class';
+            } else if (result.studentId.class && typeof result.studentId.class === 'object') {
+              // If class is an object (reference to Class document), use the name property
+              studentClass = result.studentId.class.name
+                ? `${result.studentId.class.name} ${result.studentId.class.section || ''}`
+                : 'Unknown Class';
+            }
+          }
+
+          // Calculate score and status
+          const score = result.marks || 0
+          const totalMarks = 100 // Default if not available
+          const status = result.percentage >= 50 ? "Passed" : "Failed"
+
+          // Format date - try different date fields
+          let date = 'Unknown Date';
+
+          // Try different date fields in order of preference
+          if (result.examId && typeof result.examId === 'object' && result.examId.startDate) {
+            date = new Date(result.examId.startDate).toLocaleDateString();
+          } else if (result.examId && typeof result.examId === 'object' && result.examId.createdAt) {
+            date = new Date(result.examId.createdAt).toLocaleDateString();
+          } else if (result.createdAt) {
+            date = new Date(result.createdAt).toLocaleDateString();
+          }
+
+          return {
+            id: result._id,
+            student: studentName,
+            class: getClassNameFromExam(result.examId),
+            exam: examTitle,
+            subject: examSubject,
+            score: score,
+            totalMarks: totalMarks,
+            date: date,
+            status: status,
+            attempts: result.attemptNumber || 1,
+            maxAttempts: result.examId && result.examId.attempts ? result.examId.attempts.max : 5,
+            percentage: result.percentage || 0,
+            grade: result.grade || '',
+            feedback: result.feedback || '',
+            rawData: result // Keep the raw data for detailed view
+          }
+        })
+
+        setResults(transformedResults)
+      } catch (error) {
+        console.error("Error fetching results:", error)
+        setError("Failed to load results. Please try again later.")
+        toast({
+          title: "Error",
+          description: "Failed to load results. Please try again later.",
+          variant: "destructive"
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchResults()
+  }, [toast])
 
   // Filter results based on search query, class, and exam
   const filteredResults = results.filter(
@@ -195,62 +230,80 @@ export default function TeacherResults() {
               </div>
             </div>
 
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Exam</TableHead>
-                  <TableHead>Score</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Attempts</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredResults.length === 0 ? (
+            {loading ? (
+              <div className="flex justify-center items-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
+                <span className="ml-2 text-muted-foreground">Loading results...</span>
+              </div>
+            ) : error ? (
+              <div className="text-center py-8 text-red-500">
+                <p>{error}</p>
+                <Button
+                  variant="outline"
+                  className="mt-4"
+                  onClick={() => window.location.reload()}
+                >
+                  Try Again
+                </Button>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      No results found
-                    </TableCell>
+                    <TableHead>Student</TableHead>
+                    <TableHead>Class</TableHead>
+                    <TableHead>Exam</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Attempts</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ) : (
-                  filteredResults.map((result) => (
-                    <TableRow key={result.id}>
-                      <TableCell className="font-medium">{result.student}</TableCell>
-                      <TableCell>{result.class}</TableCell>
-                      <TableCell>{result.exam}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {result.score}/{result.totalMarks}
-                          </span>
-                          <span className="text-sm text-muted-foreground">
-                            ({Math.round((result.score / result.totalMarks) * 100)}%)
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={result.status === "Passed" ? "bg-green-500" : "bg-red-500"}>
-                          {result.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{new Date(result.date).toLocaleDateString()}</TableCell>
-                      <TableCell>{result.attempts}/5</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => handleViewResult(result)}>
-                          <Eye className="h-4 w-4 text-indigo-500" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Download className="h-4 w-4 text-indigo-500" />
-                        </Button>
+                </TableHeader>
+                <TableBody>
+                  {filteredResults.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        No results found
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredResults.map((result) => (
+                      <TableRow key={result.id}>
+                        <TableCell className="font-medium">{result.student}</TableCell>
+                        <TableCell>{result.class}</TableCell>
+                        <TableCell>{result.exam}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">
+                              {result.score}/{result.totalMarks}
+                            </span>
+                            <span className="text-sm text-muted-foreground">
+                              ({Math.round((result.score / result.totalMarks) * 100)}%)
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={result.status === "Passed" ? "bg-green-500" : "bg-red-500"}>
+                            {result.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{result.date}</TableCell>
+                        <TableCell>{result.attempts}/{result.maxAttempts || 5}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="sm" onClick={() => handleViewResult(result)}>
+                            <Eye className="h-4 w-4 text-indigo-500" />
+                          </Button>
+                          <Button variant="ghost" size="sm">
+                            <Download className="h-4 w-4 text-indigo-500" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
@@ -347,7 +400,7 @@ export default function TeacherResults() {
 
       {/* View Result Dialog */}
       <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Student Result</DialogTitle>
             <DialogDescription>Detailed result for {selectedStudent?.student}</DialogDescription>

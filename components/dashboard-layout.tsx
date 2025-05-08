@@ -116,6 +116,11 @@ function DashboardContent({
           icon: <BarChart3 className="h-5 w-5" />,
         },
         {
+          name: "Advanced Analytics",
+          href: `/dashboard/${role}/analytics`,
+          icon: <BarChart3 className="h-5 w-5" />,
+        },
+        {
           name: "Subject Management",
           href: `/dashboard/${role}/subjects`,
           icon: <BookOpenCheck className="h-5 w-5" />,
@@ -124,7 +129,7 @@ function DashboardContent({
           name: "Class Management",
           href: `/dashboard/${role}/classes`,
           icon: <School className="h-5 w-5" />,
-        },        
+        },
         {
           name: "Results",
           href: `/dashboard/${role}/results`,
@@ -169,7 +174,7 @@ function DashboardContent({
           name: "Question Bank",
           href: `/dashboard/${role}/questions`,
           icon: <BookOpen className="h-5 w-5" />,
-        },        
+        },
         {
           name: "Class Management",
           href: `/dashboard/${role}/classes`,
