@@ -115,11 +115,11 @@ function DashboardContent({
           href: `/dashboard/${role}?tab=exams`,
           icon: <BarChart3 className="h-5 w-5" />,
         },
-        {
-          name: "Advanced Analytics",
-          href: `/dashboard/${role}/analytics`,
-          icon: <BarChart3 className="h-5 w-5" />,
-        },
+        // {
+        //   name: "Advanced Analytics",
+        //   href: `/dashboard/${role}/analytics`,
+        //   icon: <BarChart3 className="h-5 w-5" />,
+        // },
         {
           name: "Subject Management",
           href: `/dashboard/${role}/subjects`,
@@ -315,7 +315,7 @@ function DashboardContent({
       )}
 
       <div className="flex flex-1 relative">
-        <aside className="fixed left-0 top-0 pt-16 h-full z-40 w-64 bg-white dark:bg-slate-800 border-r dark:border-slate-700 hidden md:block shadow-sm">
+        <aside className="fixed left-0 top-0 pt-16 h-full z-40 w-64 bg-white dark:bg-slate-800 border-r dark:border-slate-700 hidden md:block shadow-sm overflow-y-auto">
           <div className="p-4">
             <div className="mb-6">
               <div className="text-xs uppercase text-indigo-500 dark:text-indigo-400 font-semibold tracking-wider mb-2">

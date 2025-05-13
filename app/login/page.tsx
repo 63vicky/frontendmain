@@ -28,7 +28,8 @@ function LoginContent() {
   const { toast } = useToast()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const defaultRole = searchParams.get("role") || "student"
+  const defaultRole = searchParams.get("role") || "teacher"
+  // const defaultRole = searchParams.get("role") || "student"
 
   const [formData, setFormData] = useState({
     email: "",
@@ -79,9 +80,28 @@ function LoginContent() {
         router.push("/dashboard/principal")
       } else if (user.role === "teacher") {
         router.push("/dashboard/teacher")
+      } else if (user.role === "student") {
+        // Student login is currently disabled
+        toast({
+          title: "Access Restricted",
+          description: "Student login is currently unavailable.",
+          variant: "destructive",
+        })
+        // Log the user out
+        authService.logout()
       } else {
-        router.push("/dashboard/student")
+        // Unknown role
+        router.push("/")
       }
+
+      // // Redirect based on role
+      // if (user.role === "principal") {
+      //   router.push("/dashboard/principal")
+      // } else if (user.role === "teacher") {
+      //   router.push("/dashboard/teacher")
+      // } else {
+      //   router.push("/dashboard/student")
+      // }
     } catch (error: any) {
       const errorMessage = error.response?.data?.message || error.message || "An error occurred during login"
       toast({
@@ -173,7 +193,8 @@ function LoginContent() {
                   onValueChange={handleRoleChange}
                   className="flex flex-col space-y-2 mt-2"
                 >
-                  {["student", "teacher", "principal"].map((role) => (
+                  {/* {["student", "teacher", "principal"].map((role) => ( */}
+                  {["teacher", "principal"].map((role) => (
                     <div
                       key={role}
                       className={`flex items-center space-x-2 rounded-md border cursor-pointer ${formData.role === role

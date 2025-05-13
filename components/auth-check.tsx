@@ -26,13 +26,19 @@ export function AuthCheck({ children, requiredRole }: AuthCheckProps) {
         // Check if user has required role
         if (requiredRole) {
           const userRole = authService.getCurrentRole();
-          
+
+          // Student login is disabled
+          if (requiredRole === 'student') {
+            router.push('/');
+            return;
+          }
+
           if (!userRole || userRole !== requiredRole) {
             router.push('/login');
             return;
           }
         }
-        
+
         setIsChecking(false);
       } catch (error) {
         console.error('Auth check error:', error);
@@ -48,4 +54,4 @@ export function AuthCheck({ children, requiredRole }: AuthCheckProps) {
   }
 
   return <>{children}</>;
-} 
+}

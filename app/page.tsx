@@ -1,7 +1,7 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { GraduationCap, Users, User, CheckCircle, Clock, BarChart, Award, FileUp, Bell, Database } from "lucide-react"
-
+import { Users, User, CheckCircle, Clock, BarChart, Award, FileUp, Bell, Database } from "lucide-react"
+// import { GraduationCap, Users, User, CheckCircle, Clock, BarChart, Award, FileUp, Bell, Database } from "lucide-react"
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col">
@@ -26,7 +26,8 @@ export default function Home() {
           <p className="text-xl mb-8 text-slate-600">
             A comprehensive exam management solution for educational institutions with advanced analytics and reporting
           </p>
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
+          {/* <div className="grid md:grid-cols-3 gap-8 mb-12"> */}
+          <div className="grid md:grid-cols-2 gap-8 mb-12">
             <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-lg shadow-md border border-indigo-100 hover:shadow-lg transition-shadow">
               <div className="bg-indigo-100 text-indigo-700 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
                 <User className="h-6 w-6" />
@@ -57,7 +58,9 @@ export default function Home() {
                 <Link href="/login?role=teacher">Teacher Login</Link>
               </Button>
             </div>
-            <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-lg shadow-md border border-green-100 hover:shadow-lg transition-shadow">
+            
+
+            {/* <div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-lg shadow-md border border-green-100 hover:shadow-lg transition-shadow">
               <div className="bg-green-100 text-green-700 w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4">
                 <GraduationCap className="h-6 w-6" />
               </div>
@@ -71,7 +74,7 @@ export default function Home() {
               >
                 <Link href="/login?role=student">Student Login</Link>
               </Button>
-            </div>
+            </div> */}
           </div>
           <div className="bg-gradient-to-br from-slate-50 to-white p-8 rounded-lg shadow-md border border-slate-100">
             <h3 className="text-2xl font-bold mb-6 text-slate-800">Key Features</h3>
