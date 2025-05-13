@@ -141,8 +141,8 @@ export default function ClassManagement() {
     setFormData({
       name: cls.name,
       section: cls.section,
-      subject: cls.subject._id,
-      schedule: cls.schedule,
+      subject: cls?.subject?._id || "",
+      schedule: cls?.schedule || "",
       status: cls.status
     })
     setShowAddDialog(true)
@@ -284,8 +284,8 @@ export default function ClassManagement() {
                           {cls.students}
                         </div>
                       </TableCell>
-                      <TableCell>{cls.subject.name}</TableCell>
-                      <TableCell>{cls.schedule}</TableCell>
+                      <TableCell>{cls?.subject?.name || "-"}</TableCell>
+                      <TableCell>{cls?.schedule || "-"}</TableCell>
                       <TableCell>
                         <Badge onClick={() => handleStatusToggle(cls)}
                           variant={cls.status === "Active" ? "default" : "secondary"}
