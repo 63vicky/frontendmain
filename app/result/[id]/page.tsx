@@ -16,6 +16,7 @@ import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 import QuestionAnalysis from "@/components/question-analysis"
 import { attemptService, ComprehensiveAttemptData } from "@/lib/services/attempt"
+import { authService } from "@/lib/services/auth"
 
 export default function ResultPage({ params }: { params: { id: string } }) {
   return (
@@ -273,7 +274,7 @@ function ResultContent({ params }: { params: { id: string } }) {
               Tech Anubhavi
             </Link>
             <nav className="space-x-4">
-              <Link href="/dashboard/teacher" className="hover:underline">
+              <Link href={`/dashboard/${authService.getCurrentUser()?.role || 'teacher'}`} className="hover:underline">
                 Dashboard
               </Link>
             </nav>
@@ -289,10 +290,10 @@ function ResultContent({ params }: { params: { id: string } }) {
             </p>
             <div className="space-y-3">
               <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
-                <Link href="/dashboard/teacher?tab=results">View All Results</Link>
+                <Link href={`/dashboard/${authService.getCurrentUser()?.role || 'teacher'}/results`}>View All Results</Link>
               </Button>
               <Button asChild className="w-full" variant="outline">
-                <Link href="/dashboard/teacher">Back to Dashboard</Link>
+                <Link href={`/dashboard/${authService.getCurrentUser()?.role || 'teacher'}`}>Back to Dashboard</Link>
               </Button>
               <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
                 Try Again
@@ -1314,7 +1315,7 @@ function ResultContent({ params }: { params: { id: string } }) {
               </Button>
             )}
             <Button variant="outline" asChild className="btn-gradient">
-              <Link href="/dashboard/student">Back to Dashboard</Link>
+              <Link href={`/dashboard/${authService.getCurrentUser()?.role || 'student'}`}>Back to Dashboard</Link>
             </Button>
           </div>
         </div>
