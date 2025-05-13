@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef, use } from "react"
+import { useState, useEffect, useRef, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,47 +19,23 @@ import {
 import { Clock, AlertCircle, CheckCircle, XCircle, HelpCircle, Loader2, AlertTriangle } from "lucide-react"
 import { api } from "@/lib/api"
 import { authService } from "@/lib/services/auth"
-import { resultService } from "@/lib/services/result-service"
 import { attemptService } from "@/lib/services/attempt"
 import { useToast } from "@/hooks/use-toast"
-import { Exam, Question } from "@/lib/types"
-
-// Default exam structure to use while loading
-const defaultExam = {
-  _id: "",
-  title: "Loading Exam...",
-  subject: "",
-  class: "",
-  duration: 60,
-  totalQuestions: 0,
-  questions: [],
-  status: "active",
-  startDate: new Date().toISOString(),
-  endDate: new Date().toISOString(),
-  attempts: {
-    current: 0,
-    max: 1
-  },
-  createdBy: "",
-  createdAt: new Date().toISOString(),
-  updatedAt: new Date().toISOString()
-}
+import { Exam } from "@/lib/types"
 
 export default function ExamPage({ params }: { params: { id: string } }) {
-  // Unwrap params using use() to handle the Promise
-  const resolvedParams = use(params)
-  const examId = resolvedParams.id
+  // Unwrap params using use() before accessing properties
+  const unwrappedParams = use(params as any) as { id: string }
+  const examId = unwrappedParams.id
 
   const router = useRouter()
   const { toast } = useToast()
   const [currentQuestion, setCurrentQuestion] = useState(0)
   const [answers, setAnswers] = useState<Record<number, string>>({})
-  const [questionTime, setQuestionTime] = useState<number>(30) // Default time in seconds
-  const [timeLeft, setTimeLeft] = useState<number>(30)
+  const [timeLeft, setTimeLeft] = useState<number>(30) // Default time in seconds
   // Removed isSkipping state as it's not needed
   const [adaptiveTimeReduction, setAdaptiveTimeReduction] = useState<number>(0) // For SCQ adaptive timing
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showWarning, setShowWarning] = useState(false)
   const [showInstructions, setShowInstructions] = useState(true)
   const [examStarted, setExamStarted] = useState(false)
   const [fillUpAnswer, setFillUpAnswer] = useState("")
@@ -74,6 +50,8 @@ export default function ExamPage({ params }: { params: { id: string } }) {
   }>>([])
   const [currentQuestionStartTime, setCurrentQuestionStartTime] = useState<Date | null>(null)
   const [currentAttemptId, setCurrentAttemptId] = useState<string>("")
+  const [isAutoTiming, setIsAutoTiming] = useState<boolean>(true) // Default to auto timing
+  const [skippedQuestions, setSkippedQuestions] = useState<number[]>([]) // Track skipped questions
 
   // Use refs to track timer intervals and prevent double invocation
   const questionTimerRef = useRef<NodeJS.Timeout | null>(null)
@@ -87,13 +65,13 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         setLoading(true)
         const user = authService.getCurrentUser()
 
-        if (!user || user.role !== "student") {
+        if (!user || (user.role !== "student" && user.role !== "teacher")) {
           toast({
             title: "Error",
-            description: "You must be logged in as a student to take an exam",
+            description: "You must be logged in as a student or teacher to take an exam",
             variant: "destructive"
           })
-          router.push("/login?role=student")
+          router.push("/login")
           return
         }
 
@@ -117,7 +95,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
             description: "This exam is not currently available for taking",
             variant: "destructive"
           })
-          router.push("/dashboard/student?tab=exams")
+          // Redirect to the appropriate dashboard based on user role
+          const dashboardPath = user.role === "teacher" ? "/dashboard/teacher?tab=available-exams" : "/dashboard/student?tab=exams";
+          router.push(dashboardPath)
           return
         }
 
@@ -127,7 +107,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
           const attemptsResponse = await api.get<any[]>(`/attempts/exam/${examId}`);
           const studentAttempts = attemptsResponse.data || [];
 
-          if (examData.attempts && studentAttempts.length >= examData.attempts.max) {
+          // For students, enforce attempt limits
+          // For teachers, allow unlimited attempts
+          if (user.role === "student" && examData.attempts && studentAttempts.length >= examData.attempts.max) {
             toast({
               title: "Maximum Attempts Reached",
               description: `You have already used all ${examData.attempts.max} attempts for this exam`,
@@ -194,7 +176,6 @@ export default function ExamPage({ params }: { params: { id: string } }) {
 
     // Set the time for the current question
     const newTime = getQuestionTime(currentQuestion)
-    setQuestionTime(newTime)
     setTimeLeft(newTime)
 
     // Record the start time for the current question
@@ -257,15 +238,25 @@ export default function ExamPage({ params }: { params: { id: string } }) {
             });
           }
 
-          // Auto-skip or submit if time runs out
+          // Auto-skip or submit if time runs out in auto-timing mode
           // Use isAdvancingRef to prevent double advancement
           if (!isAdvancingRef.current) {
             isAdvancingRef.current = true;
-            if (exam && exam.questions && currentQuestion < exam.questions.length - 1) {
-              handleNext()
+            if (isAutoTiming) {
+              if (exam && exam.questions && currentQuestion < exam.questions.length - 1) {
+                // Pass true to indicate this is a time-expired skip
+                handleNext(true)
+              } else {
+                // Force submit when time expires for the last question in auto-timing mode
+                handleSubmit()
+              }
             } else {
-              // Force submit when time expires for the last question
-              handleSubmit(true)
+              // In manual timing mode, just show a warning but don't auto-advance
+              toast({
+                title: "Time Expired",
+                description: "The time for this question has expired, but you can still answer it.",
+                variant: "destructive"
+              })
             }
             // Reset the advancing flag after a short delay
             setTimeout(() => {
@@ -312,7 +303,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const handleNext = () => {
+  const handleNext = (isTimeExpired: boolean = false) => {
     if (!exam || !exam.questions) return;
 
     // Set the advancing flag to prevent double advancement
@@ -352,7 +343,11 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         });
       }
 
-      // No need to track visited questions anymore
+      // If question is skipped due to time expiration or manually skipped without answering,
+      // add it to the skipped questions list
+      if (isTimeExpired || !answers[currentQuestion]) {
+        setSkippedQuestions(prev => [...prev, currentQuestion]);
+      }
 
       // If current question is not multiple-choice and was skipped, increase adaptive time reduction
       const currentQuestionType = exam.questions[currentQuestion].type
@@ -377,15 +372,11 @@ export default function ExamPage({ params }: { params: { id: string } }) {
     }
   }
 
-  const handleSubmit = async (force: boolean = false) => {
+  const handleSubmit = async () => {
     if (!exam || !exam.questions) return;
 
-    // Check if all questions are answered, unless force=true
-    if (!force && Object.keys(answers).length < exam.questions.length) {
-      setShowWarning(true)
-      return
-    }
-
+    // Always submit without showing warning
+    // No need to check if all questions are answered
     setIsSubmitting(true)
 
     try {
@@ -393,11 +384,11 @@ export default function ExamPage({ params }: { params: { id: string } }) {
       let score = 0
       let totalAnswered = 0
 
-      // Format answers for submission
-      const formattedAnswers = Object.entries(answers).map(([questionIndex, answer]) => {
-        // We already checked that exam.questions exists at the beginning of the function
-        const question = exam.questions![Number.parseInt(questionIndex)]
-        const questionId = question._id
+      // Format answers for submission - include all questions, even skipped ones
+      const formattedAnswers = exam.questions.map((question, index) => {
+        const questionId = question._id;
+        // Use the provided answer if it exists, otherwise mark as skipped
+        const answer = answers[index] || "SKIPPED";
 
         // Check if the answer is correct based on question type
         let isCorrect = false
@@ -491,11 +482,17 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         // Just check if the answer is long (more than 100 characters) to determine if it's descriptive
         const isDescriptiveQuestion = answer.answer && answer.answer.length > 100 ? true : false;
 
+        // Check if this is a skipped question
+        const isSkipped = answer.answer === "SKIPPED";
+
         return {
           questionId: answer.questionId,
-          selectedOption: answer.answer,
+          // For skipped questions, provide a default value that indicates it was skipped
+          selectedOption: isSkipped ? "SKIPPED" : answer.answer,
           // Include a flag to indicate this is a descriptive answer
-          isDescriptive: isDescriptiveQuestion
+          isDescriptive: isDescriptiveQuestion,
+          // Include a flag to indicate if the question was skipped
+          skipped: isSkipped
         };
       });
 
@@ -541,7 +538,12 @@ export default function ExamPage({ params }: { params: { id: string } }) {
             router.push(`/result/${attemptId}`);
           } else {
             // Fallback to dashboard if no ID is available
-            router.push("/dashboard/student?tab=results");
+            // Redirect to the appropriate dashboard based on user role
+            const user = authService.getCurrentUser();
+            const dashboardPath = user && user.role === "teacher"
+              ? "/dashboard/teacher?tab=available-exams"
+              : "/dashboard/student?tab=results";
+            router.push(dashboardPath);
           }
         }
       } else {
@@ -572,7 +574,12 @@ export default function ExamPage({ params }: { params: { id: string } }) {
         } else {
           // Fallback to the results tab if we don't have a specific result ID
           setTimeout(() => {
-            router.push("/dashboard/student?tab=results")
+            // Redirect to the appropriate dashboard based on user role
+            const user = authService.getCurrentUser();
+            const dashboardPath = user && user.role === "teacher"
+              ? "/dashboard/teacher?tab=available-exams"
+              : "/dashboard/student?tab=results";
+            router.push(dashboardPath);
           }, 2000)
         }
       } else {
@@ -599,9 +606,24 @@ export default function ExamPage({ params }: { params: { id: string } }) {
       // Store the attempt ID in state
       setCurrentAttemptId(attemptId);
 
+      // Determine timing mode based on exam settings
+      // For now, we'll use auto timing by default
+      // In a real implementation, this would be a property on the exam model
+      const autoTiming = true; // Default to auto timing for now
+      setIsAutoTiming(autoTiming);
+
       // Start the exam UI
       setExamStarted(true);
       setShowInstructions(false);
+
+      // Show a toast to inform the user about the timing mode
+      toast({
+        title: autoTiming ? "Auto Timing Enabled" : "Manual Timing Enabled",
+        description: autoTiming
+          ? "Questions will automatically advance when time expires and the exam will submit after the last question."
+          : "You can navigate through questions and submit the exam when ready using the Finish button.",
+        variant: "default"
+      });
     } catch (error: any) {
       // Check if the error is due to maximum attempts reached
       if (error.response && error.response.data && error.response.data.message === 'Maximum attempts reached') {
@@ -691,23 +713,32 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                         Short Answer, Descriptive).
                       </li>
                       <li>
-                        Each question has its own time limit. You must answer within the time limit for each question.
+                        Each question has its own time limit. When the time expires for a question, it will automatically advance to the next question.
                       </li>
                       <li>
                         Each question has its own point value based on difficulty, for a total of {
                           exam?.questions?.reduce((total, q) => total + (q.points || 0), 0) || 0
                         } points.
                       </li>
-                      <li>You cannot go back to previous questions once answered.</li>
-                      <li>Each question will automatically advance when its time expires.</li>
+                      <li>You cannot go back to previous questions once answered or skipped.</li>
+                      <li>Questions that are skipped due to time expiration cannot be revisited.</li>
+                      <li>The exam will automatically submit after you complete the last question.</li>
                       <li>You can see your progress in the navigation bar at the bottom.</li>
                       <li>Questions will be randomized to prevent cheating.</li>
-                      <li>
-                        <strong>You can attempt this exam up to {exam?.attempts?.max || 1} times.</strong>
-                        {/* We don't use exam.attempts.current anymore since it's a global counter */}
-                        {/* Instead, we'll rely on the backend to enforce the limit */}
-                      </li>
-                      <li>Your highest score from all attempts will be considered for your final grade.</li>
+                      {authService.getCurrentUser()?.role === "student" ? (
+                        <>
+                          <li>
+                            <strong>You can attempt this exam up to {exam?.attempts?.max || 1} times.</strong>
+                            {/* We don't use exam.attempts.current anymore since it's a global counter */}
+                            {/* Instead, we'll rely on the backend to enforce the limit */}
+                          </li>
+                          <li>Your highest score from all attempts will be considered for your final grade.</li>
+                        </>
+                      ) : (
+                        <li>
+                          <strong>As a teacher, you can take this exam multiple times for practice.</strong>
+                        </li>
+                      )}
                     </ul>
                   </div>
 
@@ -940,14 +971,34 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                 </Button>
 
                 <div className="flex gap-2 ml-auto">
-                  {exam && exam.questions && currentQuestion < exam.questions.length - 1 && (
+                  {/* Skip button - submits directly on last question */}
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (exam && exam.questions && currentQuestion === exam.questions.length - 1) {
+                        // If this is the last question, submit the exam instead of skipping
+                        handleSubmit();
+                      } else {
+                        // Otherwise, skip to the next question
+                        handleNext(false);
+                      }
+                    }}
+                  >
+                    {exam && exam.questions && currentQuestion === exam.questions.length - 1 ? "Skip & Submit" : "Skip"}
+                  </Button>
+
+                  {/* Finish button for manual timing mode */}
+                  {!isAutoTiming && (
                     <Button
-                      variant="outline"
-                      onClick={handleNext}
+                      onClick={() => handleSubmit()}
+                      disabled={isSubmitting}
+                      className="status-success"
                     >
-                      Skip
+                      {isSubmitting ? "Submitting..." : "Finish Exam"}
                     </Button>
                   )}
+
+                  {/* Submit/Next button */}
                   {exam && exam.questions && currentQuestion === exam.questions.length - 1 ? (
                     <Button
                       onClick={() => handleSubmit()}
@@ -958,7 +1009,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                     </Button>
                   ) : (
                     <Button
-                      onClick={handleNext}
+                      onClick={() => handleNext(false)}
                       className="btn-gradient"
                     >
                       Next
@@ -970,16 +1021,20 @@ export default function ExamPage({ params }: { params: { id: string } }) {
 
             <div className="bg-white p-4 rounded-lg shadow-md">
               <h3 className="text-sm font-medium mb-3 text-slate-600">Question Navigator</h3>
-              <div className="flex items-center mb-2">
-                <div className="flex items-center mr-4">
+              <div className="flex items-center mb-2 flex-wrap">
+                <div className="flex items-center mr-4 mb-1">
                   <div className="w-4 h-4 bg-slate-100 border border-slate-300 mr-1"></div>
                   <span className="text-xs text-slate-600">Locked</span>
                 </div>
-                <div className="flex items-center mr-4">
+                <div className="flex items-center mr-4 mb-1">
+                  <div className="w-4 h-4 bg-red-50 border border-red-300 mr-1"></div>
+                  <span className="text-xs text-slate-600">Skipped/Time Expired</span>
+                </div>
+                <div className="flex items-center mr-4 mb-1">
                   <div className="w-4 h-4 bg-gradient-to-r from-indigo-500 to-indigo-600 mr-1"></div>
                   <span className="text-xs text-slate-600">Answered</span>
                 </div>
-                <div className="flex items-center">
+                <div className="flex items-center mb-1">
                   <div className="w-4 h-4 border border-slate-300 mr-1"></div>
                   <span className="text-xs text-slate-600">Current/Available</span>
                 </div>
@@ -993,7 +1048,9 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                       answers[index]
                         ? "btn-gradient"
                         : index < currentQuestion
-                          ? "border-slate-300 bg-slate-100 text-slate-400" // Styling for locked questions
+                          ? skippedQuestions.includes(index)
+                            ? "border-red-300 bg-red-50 text-red-400" // Styling for skipped questions
+                            : "border-slate-300 bg-slate-100 text-slate-400" // Styling for locked questions
                           : "border-slate-300"
                     } ${currentQuestion === index ? "ring-2 ring-offset-2 ring-indigo-500" : ""}`}
                     onClick={() => {
@@ -1010,7 +1067,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
                         <span className="absolute inset-0 flex items-center justify-center">
                           <span className="sr-only">Locked</span>
                           <span className="h-4 w-4 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 opacity-50">
-                            🔒
+                            {skippedQuestions.includes(index) ? "⏱️" : "🔒"}
                           </span>
                         </span>
                       </span>
@@ -1022,40 +1079,7 @@ export default function ExamPage({ params }: { params: { id: string } }) {
               </div>
             </div>
 
-            {showWarning && (
-              <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start">
-                <AlertCircle className="h-5 w-5 text-amber-500 mr-2 mt-0.5" />
-                <div>
-                  <h4 className="font-medium text-amber-800">Unanswered Questions</h4>
-                  <p className="text-amber-700 text-sm">
-                    You have {exam && exam.questions ? exam.questions.length - Object.keys(answers).length : 0} unanswered questions. Are you
-                    sure you want to submit?
-                  </p>
-                  <div className="flex gap-2 mt-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShowWarning(false)}
-                      className="border-amber-300 text-amber-800 hover:bg-amber-100"
-                    >
-                      Continue Exam
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        setShowWarning(false)
-                        setIsSubmitting(true)
-                        // Force submission even with unanswered questions
-                        handleSubmit(true)
-                      }}
-                      className="status-warning"
-                    >
-                      Submit Anyway
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            )}
+            {/* Warning dialog removed - we now submit without confirmation */}
           </div>
         )}
         {timeLeft <= 5 && (

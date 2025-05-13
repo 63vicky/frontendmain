@@ -49,6 +49,7 @@ const Exam = mongoose.models.Exam || mongoose.model('Exam', new mongoose.Schema(
     max: {
       type: Number,
       required: true,
+      default: 5,
       min: 1,
       max: 5
     }

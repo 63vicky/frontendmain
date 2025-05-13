@@ -584,18 +584,14 @@ const handleEditDialogClose = () => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-1">
           <h1 className="text-3xl font-bold">Class Management</h1>
-          <p className="text-muted-foreground">Manage your classes, schedules, and students</p>
+          <p className="text-muted-foreground">Manage your classes, schedules, and learning materials</p>
         </div>
 
         <Tabs defaultValue="classes" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="classes" className="flex items-center gap-2">
               <School className="h-4 w-4" />
               <span>My Classes</span>
-            </TabsTrigger>
-            <TabsTrigger value="students" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>Students</span>
             </TabsTrigger>
             <TabsTrigger value="materials" className="flex items-center gap-2">
               <BookOpen className="h-4 w-4" />
@@ -750,8 +746,8 @@ const handleEditDialogClose = () => {
                         }}
                         disabled={actionLoading}
                       >
-                        <UserPlus className="h-4 w-4 mr-1" />
-                        Manage Students
+                        <School className="h-4 w-4 mr-1" />
+                        Manage Class
                       </Button>
                       <Button
                         variant="outline"
@@ -779,82 +775,7 @@ const handleEditDialogClose = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="students" className="space-y-4 pt-4">
-            <div className="flex flex-col md:flex-row justify-between gap-4">
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  type="search"
-                  placeholder="Search students..."
-                  className="pl-8"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              <div className="flex gap-2">
-                <Select
-                  defaultValue="all"
-                  value={selectedClassFilter}
-                  onValueChange={(value) => {
-                    setSelectedClassFilter(value);
-                  }}
-                >
-                  <SelectTrigger className="w-[180px]">
-                    <SelectValue placeholder="Filter by class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Classes</SelectItem>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls._id} value={cls._id}>
-                        {cls.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
 
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Roll No.</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Attendance</TableHead>
-                      <TableHead>Performance</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredStudents.map((student) => (
-                      <TableRow key={student._id}>
-                        <TableCell className="font-medium">{student.name}</TableCell>
-                        <TableCell>{student.rollNo}</TableCell>
-                        <TableCell>
-                          {classes.find(c => c._id === student.class)?.name || '-'}
-                        </TableCell>
-                        <TableCell>{student.attendance || 0}%</TableCell>
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              student.performance === "Excellent"
-                                ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                : student.performance === "Good"
-                                ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
-                                : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
-                            }`}
-                          >
-                            {student.performance || 'Not Available'}
-                          </span>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="materials" className="space-y-4 pt-4">
             <div className="flex flex-col md:flex-row justify-between gap-4">
@@ -1208,7 +1129,6 @@ const handleEditDialogClose = () => {
                 <Label htmlFor="material-class">Class</Label>
                 <Select
                   name="class"
-                  defaultValue=""
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a class" />

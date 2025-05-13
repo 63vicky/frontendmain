@@ -347,11 +347,11 @@ exports.validateQuestionData = async (data) => {
   for (const [index, entry] of data.entries()) {
     try {
       // Required fields
-      if (!entry.text || !entry.type || !entry.subject || !entry.class || !entry.correctAnswer) {
+      if (!entry.text || !entry.type || !entry.subject || !entry.correctAnswer) {
         invalidEntries.push({
           row: index + 2, // +2 because index is 0-based and we skip header row
           data: entry,
-          errors: ['Missing required fields (text, type, subject, class, or correctAnswer)']
+          errors: ['Missing required fields (text, type, subject, or correctAnswer)']
         });
         continue;
       }
@@ -427,7 +427,7 @@ exports.validateQuestionData = async (data) => {
         text: entry.text,
         type: entry.type,
         subject: entry.subject,
-        className: entry.class + (entry.section ? '-' + entry.section : ''),
+        className: entry.class ? entry.class + (entry.section ? '-' + entry.section : '') : '',
         chapter: entry.chapter || '',
         difficulty: entry.difficulty || 'Medium',
         options: options,
@@ -459,8 +459,8 @@ exports.generateQuestionTemplate = () => {
       text: 'What is the capital of France?',
       type: 'multiple-choice',
       subject: 'Geography',
-      class: '9',
-      section: 'A',
+      class: '9', // Optional
+      section: 'A', // Optional
       chapter: 'World Capitals',
       difficulty: 'Easy',
       options: 'Paris,London,Berlin,Madrid',
@@ -473,8 +473,8 @@ exports.generateQuestionTemplate = () => {
       text: 'Solve for x: 2x + 5 = 15',
       type: 'short-answer',
       subject: 'Mathematics',
-      class: '8',
-      section: 'B',
+      class: '', // Class is optional
+      section: '', // Section is optional
       chapter: 'Algebra',
       difficulty: 'Medium',
       options: '',

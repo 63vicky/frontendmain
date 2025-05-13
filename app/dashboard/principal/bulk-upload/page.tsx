@@ -9,12 +9,17 @@ import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "sonner"
 import DashboardLayout from "@/components/dashboard-layout"
-import { FileUp, Download, FileText, CheckCircle, AlertCircle, X, Users, GraduationCap, RefreshCw } from "lucide-react"
+import { FileUp, Download, FileText, CheckCircle, AlertCircle, Users, RefreshCw } from "lucide-react"
 import { bulkUploadApi } from "@/lib/api"
 import type { BulkUpload } from "@/lib/types"
 
 export default function BulkUpload() {
-  const [activeTab, setActiveTab] = useState("students")
+  // Get the tab from URL if available
+  const searchParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const tabParam = searchParams.get('tab');
+  const initialTab = tabParam === 'questions' ? 'questions' : 'teachers';
+
+  const [activeTab, setActiveTab] = useState(initialTab)
   const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "success" | "error">("idle")
   const [uploadProgress, setUploadProgress] = useState(0)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -27,17 +32,27 @@ export default function BulkUpload() {
   } | null>(null)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const questionFileInputRef = useRef<HTMLInputElement>(null)
 
   // Fetch recent uploads on component mount
   useEffect(() => {
-    if (activeTab === "students") {
-      fetchRecentUploads("students")
-    } else if (activeTab === "teachers") {
+    if (activeTab === "teachers") {
       fetchRecentUploads("teachers")
+    } else if (activeTab === "questions") {
+      fetchRecentUploads("questions")
     } else if (activeTab === "uploads") {
       fetchRecentUploads(uploadFilter)
     }
   }, [activeTab, uploadFilter])
+
+  // Run once on component mount to handle initial tab
+  useEffect(() => {
+    if (initialTab === "questions") {
+      fetchRecentUploads("questions")
+    } else {
+      fetchRecentUploads("teachers")
+    }
+  }, [])
 
   const fetchRecentUploads = async (type: string) => {
     try {
@@ -73,7 +88,11 @@ export default function BulkUpload() {
   }
 
   const handleBrowseClick = () => {
-    fileInputRef.current?.click()
+    if (activeTab === "teachers") {
+      fileInputRef.current?.click()
+    } else if (activeTab === "questions") {
+      questionFileInputRef.current?.click()
+    }
   }
 
   const handleUpload = async () => {
@@ -100,12 +119,20 @@ export default function BulkUpload() {
         })
       }, 300)
 
+      let response;
+
       // Make API call based on active tab
-      let response
-      if (activeTab === "students") {
-        response = await bulkUploadApi.uploadStudents(formData)
-      } else if (activeTab === "teachers") {
+      if (activeTab === "teachers") {
         response = await bulkUploadApi.uploadTeachers(formData)
+        toast.success("Teachers uploaded successfully")
+      } else if (activeTab === "questions") {
+        response = await bulkUploadApi.uploadQuestions(formData)
+        toast.success("Questions uploaded successfully")
+      } else {
+        clearInterval(interval)
+        setUploadStatus("error")
+        toast.error("Invalid upload type")
+        return
       }
 
       // Clear interval and set to 100%
@@ -122,12 +149,6 @@ export default function BulkUpload() {
 
       // Refresh recent uploads
       fetchRecentUploads(activeTab)
-
-      if (activeTab === "students") {
-        toast.success("Students uploaded successfully")
-      } else if (activeTab === "teachers") {
-        toast.success("Teachers uploaded successfully")
-      }
     } catch (error) {
       console.error("Upload error:", error)
       setUploadStatus("error")
@@ -136,38 +157,27 @@ export default function BulkUpload() {
   }
 
   const handleDownloadTemplate = () => {
-    if (activeTab === "students") {
-      // Generate and download student template
-      const csvContent = generateSampleCSV("students")
-      downloadCSV(csvContent, "student_template.csv")
-    } else if (activeTab === "teachers") {
+    if (activeTab === "teachers") {
       // Generate and download teacher template
-      const csvContent = generateSampleCSV("teachers")
+      const csvContent = generateSampleCSV()
       downloadCSV(csvContent, "teacher_template.csv")
+    } else if (activeTab === "questions") {
+      // Use the API to download question template
+      bulkUploadApi.downloadQuestionTemplate()
     }
   }
 
-  const generateSampleCSV = (type: string) => {
+  const generateSampleCSV = () => {
     let headers: string[] = []
     let sampleData: string[][] = []
 
-    if (type === "students") {
-      // Note: Passwords will be hashed on the server side during import
-      headers = ["name", "email", "password", "class", "section", "rollNo", "status"]
-      sampleData = [
-        ["John Doe", "john.doe@example.com", "password123", "10", "A", "10001", "active"],
-        ["Jane Smith", "jane.smith@example.com", "password123", "9", "B", "9002", "active"],
-        ["Sam Wilson", "sam.wilson@example.com", "password123", "8", "C", "8003", "active"]
-      ]
-    } else if (type === "teachers") {
-      // Note: Passwords will be hashed on the server side during import
-      headers = ["name", "email", "password", "subject", "className", "section", "status"]
-      sampleData = [
-        ["John Smith", "john.smith@example.com", "password123", "Mathematics", "10", "A", "active"],
-        ["Mary Johnson", "mary.johnson@example.com", "password123", "Science", "8", "A", "active"],
-        ["Robert Brown", "robert.brown@example.com", "password123", "English", "7", "A", "active"]
-      ]
-    }
+    // Note: Passwords will be hashed on the server side during import
+    headers = ["name", "email", "password", "subject", "className", "section", "status"]
+    sampleData = [
+      ["John Smith", "john.smith@example.com", "password123", "Mathematics", "10", "A", "active"],
+      ["Mary Johnson", "mary.johnson@example.com", "password123", "Science", "8", "A", "active"],
+      ["Robert Brown", "robert.brown@example.com", "password123", "English", "7", "A", "active"]
+    ]
 
     // Helper function to escape CSV values
     const escapeCSV = (value: string) => {
@@ -207,19 +217,19 @@ export default function BulkUpload() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold">Bulk Upload</h1>
-            <p className="text-muted-foreground">Upload students and teachers in bulk</p>
+            <p className="text-muted-foreground">Upload teachers and questions in bulk</p>
           </div>
         </div>
 
-        <Tabs defaultValue="students" value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <Tabs defaultValue={initialTab} value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="students" className="flex items-center gap-1">
-              <GraduationCap className="h-4 w-4" />
-              <span>Students Upload</span>
-            </TabsTrigger>
             <TabsTrigger value="teachers" className="flex items-center gap-1">
               <Users className="h-4 w-4" />
               <span>Teachers Upload</span>
+            </TabsTrigger>
+            <TabsTrigger value="questions" className="flex items-center gap-1">
+              <FileText className="h-4 w-4" />
+              <span>Questions Upload</span>
             </TabsTrigger>
             <TabsTrigger value="uploads" className="flex items-center gap-1">
               <FileText className="h-4 w-4" />
@@ -227,215 +237,7 @@ export default function BulkUpload() {
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="students" className="space-y-4 pt-4">
-            <Card className="border-0 shadow-md">
-              <CardHeader>
-                <CardTitle>Upload Students</CardTitle>
-                <CardDescription>Upload multiple students at once using CSV or Excel files</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    {/* Hidden file input */}
-                    <Input
-                      type="file"
-                      ref={fileInputRef}
-                      className="hidden"
-                      accept=".csv,.xlsx,.xls"
-                      onChange={handleFileChange}
-                    />
 
-                    {uploadStatus === "idle" && (
-                      <>
-                        <FileUp className="h-12 w-12 mx-auto text-indigo-400 mb-4" />
-                        <p className="text-lg text-gray-600 mb-2">
-                          {selectedFile ? selectedFile.name : "Drag and drop your file here, or click to browse"}
-                        </p>
-                        <p className="text-sm text-gray-500 mb-4">Supports CSV, Excel (.xlsx)</p>
-                        {selectedFile ? (
-                          <div className="flex justify-center gap-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedFile(null)
-                                if (fileInputRef.current) {
-                                  fileInputRef.current.value = ""
-                                }
-                              }}
-                            >
-                              Cancel
-                            </Button>
-                            <Button
-                              className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
-                              onClick={handleUpload}
-                            >
-                              Upload File
-                            </Button>
-                          </div>
-                        ) : (
-                          <Button
-                            className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
-                            onClick={handleBrowseClick}
-                          >
-                            Browse Files
-                          </Button>
-                        )}
-                      </>
-                    )}
-
-                    {uploadStatus === "uploading" && (
-                      <div className="py-4">
-                        <FileText className="h-12 w-12 mx-auto text-indigo-400 mb-4 animate-pulse" />
-                        <p className="text-lg text-gray-600 mb-2">Uploading students...</p>
-                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4 max-w-md mx-auto">
-                          <div
-                            className="bg-indigo-600 h-2.5 rounded-full"
-                            style={{ width: `${uploadProgress}%` }}
-                          ></div>
-                        </div>
-                        <p className="text-sm text-gray-500">{uploadProgress}% complete</p>
-                      </div>
-                    )}
-
-                    {uploadStatus === "success" && uploadResult && (
-                      <div className="py-4">
-                        <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
-                        <p className="text-lg text-gray-600 mb-2">Upload Successful!</p>
-                        <p className="text-sm text-gray-500 mb-4">
-                          {uploadResult.successCount} of {uploadResult.totalRecords} students have been uploaded successfully
-                          {uploadResult.failureCount > 0 && ` (${uploadResult.failureCount} failed)`}
-                        </p>
-                        <div className="flex justify-center gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setUploadStatus("idle")
-                              setUploadProgress(0)
-                              setSelectedFile(null)
-                              if (fileInputRef.current) {
-                                fileInputRef.current.value = ""
-                              }
-                            }}
-                          >
-                            Upload Another File
-                          </Button>
-                          <Button
-                            className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
-                            onClick={() => {
-                              window.location.href = "/dashboard/principal?tab=students"
-                            }}
-                          >
-                            View Students
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {uploadStatus === "error" && (
-                      <div className="py-4">
-                        <AlertCircle className="h-12 w-12 mx-auto text-red-500 mb-4" />
-                        <p className="text-lg text-gray-600 mb-2">Upload Failed</p>
-                        <p className="text-sm text-red-500 mb-4">
-                          There was an error uploading your file. Please check the format and try again.
-                        </p>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setUploadStatus("idle")
-                            setUploadProgress(0)
-                            setSelectedFile(null)
-                            if (fileInputRef.current) {
-                              fileInputRef.current.value = ""
-                            }
-                          }}
-                        >
-                          Try Again
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="bg-primary p-4 rounded-lg">
-                    <h3 className="font-medium text-white mb-2">Download Templates</h3>
-                    <p className="text-sm text-white mb-4">
-                      Download our template files to ensure your data is formatted correctly
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="bg-background text-foreground"
-                        onClick={handleDownloadTemplate}
-                      >
-                        <Download className="h-4 w-4 mr-2" />
-                        Student Template with Class & Section
-                      </Button>
-                    </div>
-                  </div>
-
-                  <div className="bg-muted p-4 rounded-lg">
-                    <h3 className="font-medium mb-2">Instructions</h3>
-                    <ul className="text-sm space-y-2 list-disc pl-5">
-                      <li>Use the provided templates to format your student data correctly</li>
-                      <li>Required fields: Name, Email, Password, Class, Section, Roll Number, Status</li>
-                      <li>Ensure email addresses are unique for each student</li>
-                      <li>Class and Section must match existing classes in the system</li>
-                      <li>Passwords will be automatically hashed for security</li>
-                      <li>Maximum file size: 10MB</li>
-                    </ul>
-                  </div>
-
-                  <div className="bg-muted p-4 rounded-lg">
-                    <h3 className="font-medium mb-2">Recent Uploads</h3>
-                    <div className="space-y-2">
-                      {recentUploads.length > 0 ? (
-                        recentUploads.map((upload) => (
-                          <div key={upload._id} className="flex items-center justify-between p-2 hover:bg-background/50 bg-background rounded border">
-                            <div className="flex items-center">
-                              <FileText className="h-5 w-5 text-indigo-500 mr-2" />
-                              <div>
-                                <p className="font-medium">{upload.originalName}</p>
-                                <p className="text-xs text-gray-500">
-                                  Uploaded on {new Date(upload.createdAt).toLocaleDateString()} •
-                                  {upload.successCount} {activeTab === "students" ? "students" : "teachers"}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="flex items-center">
-                              <Badge className={
-                                upload.status === "completed"
-                                  ? "bg-green-500 mr-2"
-                                  : upload.status === "processing"
-                                    ? "bg-yellow-500 mr-2"
-                                    : "bg-red-500 mr-2"
-                              }>
-                                {upload.status === "completed"
-                                  ? "Processed"
-                                  : upload.status === "processing"
-                                    ? "Processing"
-                                    : "Failed"}
-                              </Badge>
-                              {upload.status === "completed" && (
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => window.location.href = `/dashboard/principal/bulk-upload/${upload._id}`}
-                                >
-                                  View
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-gray-500 text-center py-4">No recent uploads found</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="teachers" className="space-y-4 pt-4">
             <Card className="border-0 shadow-md">
@@ -446,7 +248,7 @@ export default function BulkUpload() {
               <CardContent>
                 <div className="space-y-6">
                   <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
-                    {/* Hidden file input - reusing the same ref */}
+                    {/* Hidden file input for teachers */}
                     <Input
                       type="file"
                       ref={fileInputRef}
@@ -578,7 +380,7 @@ export default function BulkUpload() {
                         onClick={handleDownloadTemplate}
                       >
                         <Download className="h-4 w-4 mr-2" />
-                        Teacher Template with Classes
+                        Teacher Template
                       </Button>
                     </div>
                   </div>
@@ -609,6 +411,218 @@ export default function BulkUpload() {
                                 <p className="text-xs text-gray-500">
                                   Uploaded on {new Date(upload.createdAt).toLocaleDateString()} •
                                   {upload.successCount} {activeTab === "students" ? "students" : "teachers"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex items-center">
+                              <Badge className={
+                                upload.status === "completed"
+                                  ? "bg-green-500 mr-2"
+                                  : upload.status === "processing"
+                                    ? "bg-yellow-500 mr-2"
+                                    : "bg-red-500 mr-2"
+                              }>
+                                {upload.status === "completed"
+                                  ? "Processed"
+                                  : upload.status === "processing"
+                                    ? "Processing"
+                                    : "Failed"}
+                              </Badge>
+                              {upload.status === "completed" && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => window.location.href = `/dashboard/principal/bulk-upload/${upload._id}`}
+                                >
+                                  View
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-gray-500 text-center py-4">No recent uploads found</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="questions" className="space-y-4 pt-4">
+            <Card className="border-0 shadow-md">
+              <CardHeader>
+                <CardTitle>Upload Questions</CardTitle>
+                <CardDescription>Upload multiple questions at once using CSV or Excel files</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                    {/* Hidden file input for questions */}
+                    <Input
+                      type="file"
+                      ref={questionFileInputRef}
+                      className="hidden"
+                      accept=".csv,.xlsx,.xls"
+                      onChange={handleFileChange}
+                    />
+
+                    {uploadStatus === "idle" && (
+                      <>
+                        <FileUp className="h-12 w-12 mx-auto text-indigo-400 mb-4" />
+                        <p className="text-lg text-gray-600 mb-2">
+                          {selectedFile ? selectedFile.name : "Drag and drop your file here, or click to browse"}
+                        </p>
+                        <p className="text-sm text-gray-500 mb-4">Supports CSV, Excel (.xlsx)</p>
+                        {selectedFile ? (
+                          <div className="flex justify-center gap-2">
+                            <Button
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedFile(null)
+                                if (questionFileInputRef.current) {
+                                  questionFileInputRef.current.value = ""
+                                }
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                              onClick={handleUpload}
+                            >
+                              Upload File
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                            onClick={handleBrowseClick}
+                          >
+                            Browse Files
+                          </Button>
+                        )}
+                      </>
+                    )}
+
+                    {uploadStatus === "uploading" && (
+                      <div className="py-4">
+                        <FileText className="h-12 w-12 mx-auto text-indigo-400 mb-4 animate-pulse" />
+                        <p className="text-lg text-gray-600 mb-2">Uploading questions...</p>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5 mb-4 max-w-md mx-auto">
+                          <div
+                            className="bg-indigo-600 h-2.5 rounded-full"
+                            style={{ width: `${uploadProgress}%` }}
+                          ></div>
+                        </div>
+                        <p className="text-sm text-gray-500">{uploadProgress}% complete</p>
+                      </div>
+                    )}
+
+                    {uploadStatus === "success" && uploadResult && (
+                      <div className="py-4">
+                        <CheckCircle className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                        <p className="text-lg text-gray-600 mb-2">Upload Successful!</p>
+                        <p className="text-sm text-gray-500 mb-4">
+                          {uploadResult.successCount} of {uploadResult.totalRecords} questions have been uploaded successfully
+                          {uploadResult.failureCount > 0 && ` (${uploadResult.failureCount} failed)`}
+                        </p>
+                        <div className="flex justify-center gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setUploadStatus("idle")
+                              setUploadProgress(0)
+                              setSelectedFile(null)
+                              if (questionFileInputRef.current) {
+                                questionFileInputRef.current.value = ""
+                              }
+                            }}
+                          >
+                            Upload Another File
+                          </Button>
+                          <Button
+                            className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
+                            onClick={() => {
+                              window.location.href = "/dashboard/principal/questions"
+                            }}
+                          >
+                            View Questions
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {uploadStatus === "error" && (
+                      <div className="py-4">
+                        <AlertCircle className="h-12 w-12 mx-auto text-red-500 mb-4" />
+                        <p className="text-lg text-gray-600 mb-2">Upload Failed</p>
+                        <p className="text-sm text-red-500 mb-4">
+                          There was an error uploading your file. Please check the format and try again.
+                        </p>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setUploadStatus("idle")
+                            setUploadProgress(0)
+                            setSelectedFile(null)
+                            if (questionFileInputRef.current) {
+                              questionFileInputRef.current.value = ""
+                            }
+                          }}
+                        >
+                          Try Again
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-primary p-4 rounded-lg">
+                    <h3 className="font-medium text-white mb-2">Download Templates</h3>
+                    <p className="text-sm text-white mb-4">
+                      Download our template files to ensure your data is formatted correctly
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="bg-background text-foreground"
+                        onClick={handleDownloadTemplate}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Question Template
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="bg-muted p-4 rounded-lg">
+                    <h3 className="font-medium mb-2">Instructions</h3>
+                    <ul className="text-sm space-y-2 list-disc pl-5">
+                      <li>Use the provided template to format your question data correctly</li>
+                      <li>Required fields: Text, Type, Subject, Correct Answer</li>
+                      <li>Optional fields: Class, Section, Difficulty, Chapter, Tags</li>
+                      <li>For multiple-choice questions, provide options separated by pipe (|) character</li>
+                      <li>Correct answers for multiple-choice should be the index of the correct option (0-based)</li>
+                      <li>Points field determines the score value of each question</li>
+                      <li>Time field specifies the recommended time in seconds for answering the question</li>
+                      <li>Maximum file size: 10MB</li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-muted p-4 rounded-lg">
+                    <h3 className="font-medium mb-2">Recent Uploads</h3>
+                    <div className="space-y-2">
+                      {recentUploads.length > 0 ? (
+                        recentUploads.map((upload) => (
+                          <div key={upload._id} className="flex items-center justify-between p-2 hover:bg-background/50 bg-background rounded border">
+                            <div className="flex items-center">
+                              <FileText className="h-5 w-5 text-indigo-500 mr-2" />
+                              <div>
+                                <p className="font-medium">{upload.originalName}</p>
+                                <p className="text-xs text-gray-500">
+                                  Uploaded on {new Date(upload.createdAt).toLocaleDateString()} •
+                                  {upload.successCount} questions
                                 </p>
                               </div>
                             </div>
@@ -687,6 +701,16 @@ export default function BulkUpload() {
                         }}
                       >
                         Teachers
+                      </Button>
+                      <Button
+                        variant={uploadFilter === "questions" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setUploadFilter("questions");
+                          fetchRecentUploads("questions");
+                        }}
+                      >
+                        Questions
                       </Button>
                     </div>
                     <Button

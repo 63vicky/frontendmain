@@ -11,6 +11,8 @@ exports.getAllQuestions = async (req, res) => {
       type,
       difficulty,
       search,
+      teacherId,
+      category,
       status = 'Active'
     } = req.query;
 
@@ -20,6 +22,8 @@ exports.getAllQuestions = async (req, res) => {
     if (className && className !== 'all') filter.className = className;
     if (type && type !== 'all') filter.type = type;
     if (difficulty && difficulty !== 'all') filter.difficulty = difficulty;
+    if (teacherId && teacherId !== 'all') filter.createdBy = teacherId;
+    if (category && category !== 'all') filter.category = category;
     if (search) {
       filter.$text = { $search: search };
     }
@@ -64,8 +68,14 @@ exports.createQuestion = async (req, res) => {
       correctAnswer,
       points,
       time,
-      tags
+      tags,
+      category
     } = req.body;
+
+    // Define standard question types
+    const STANDARD_QUESTION_TYPES = ['multiple-choice', 'short-answer', 'descriptive'];
+
+    // Allow custom question types - only validate multiple-choice specifically
 
     // Validate question type specific requirements
     if (type === 'multiple-choice' && (!options || options.length < 2)) {
@@ -87,6 +97,7 @@ exports.createQuestion = async (req, res) => {
       points,
       time,
       tags: tags || [],
+      category, // Include category field
       createdBy: req.user._id
     });
 
@@ -112,7 +123,8 @@ exports.updateQuestion = async (req, res) => {
       points,
       time,
       tags,
-      status
+      status,
+      category
     } = req.body;
 
     const question = await Question.findById(req.params.id);
@@ -124,6 +136,11 @@ exports.updateQuestion = async (req, res) => {
     if (question.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, message: 'Not authorized to update this question' });
     }
+
+    // Define standard question types
+    const STANDARD_QUESTION_TYPES = ['multiple-choice', 'short-answer', 'descriptive'];
+
+    // Allow custom question types - only validate multiple-choice specifically
 
     // Validate question type specific requirements
     if (type === 'multiple-choice' && (!options || options.length < 2)) {
@@ -147,7 +164,8 @@ exports.updateQuestion = async (req, res) => {
         points,
         time,
         tags: tags || question.tags,
-        status
+        status,
+        category: category || question.category
       },
       { new: true }
     ).populate('createdBy', 'name email');
@@ -283,6 +301,18 @@ exports.getChapters = async (req, res) => {
     const { subject } = req.params;
     const chapters = await Question.distinct('chapter', { subject, status: 'Active' });
     res.json({ success: true, data: chapters });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// Get unique categories
+exports.getCategories = async (req, res) => {
+  try {
+    const categories = await Question.distinct('category', { status: 'Active' });
+    // Filter out null or empty categories
+    const validCategories = categories.filter(category => category && category.trim() !== '');
+    res.json({ success: true, data: validCategories });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

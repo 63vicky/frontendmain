@@ -9,8 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import DashboardLayout from "@/components/dashboard-layout"
-import UserManagement from "@/components/user-management"
 import ExamManagement from "@/components/exam-management"
+import AvailableExams from "@/components/available-exams"
 import { QuestionDialog } from "@/components/question-dialog"
 import { useSearchParams, useRouter } from "next/navigation"
 import { dashboardService } from "@/lib/services/dashboard"
@@ -73,7 +73,7 @@ function TeacherDashboardContent() {
 
   useEffect(() => {
     const tab = searchParams.get("tab")
-    if (tab && ["overview", "exams", "create", "students"].includes(tab)) {
+    if (tab && ["overview", "exams", "create", "available-exams"].includes(tab)) {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -131,24 +131,24 @@ function TeacherDashboardContent() {
     <DashboardLayout role="teacher">
       <div className="flex flex-col gap-4">
         <h1 className="text-3xl font-bold">Teacher Dashboard</h1>
-        <p className="text-muted-foreground">Create exams, manage students, and analyze performance</p>
+        <p className="text-muted-foreground">Create exams, manage classes, and analyze performance</p>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
           <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="exams">My Exams</TabsTrigger>
             <TabsTrigger value="create">Create Exam</TabsTrigger>
-            <TabsTrigger value="students">Students</TabsTrigger>
+            <TabsTrigger value="available-exams">Take Exams</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4 pt-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">My Students</CardTitle>
+                  <CardTitle className="text-sm font-medium">My Classes</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats?.totalStudents || 0}</div>
+                  <div className="text-2xl font-bold">{stats?.totalClasses || 0}</div>
                 </CardContent>
               </Card>
               <Card>
@@ -215,26 +215,39 @@ function TeacherDashboardContent() {
 
               <Card className="col-span-1">
                 <CardHeader>
-                  <CardTitle>Student Performance</CardTitle>
-                  <CardDescription>Top performing students</CardDescription>
+                  <CardTitle>Teacher Performance</CardTitle>
+                  <CardDescription>Your exam performance metrics</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {stats?.topStudents?.map((student) => (
-                      <div key={student.id} className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="h-8 w-8 rounded-full bg-slate-200 flex items-center justify-center">
-                            {student.name.charAt(0)}
-                          </div>
-                          <p className="font-medium">{student.name}</p>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-green-100 text-green-800 flex items-center justify-center">
+                          A+
                         </div>
-                        <p className="font-medium">{student.score}%</p>
+                        <p className="font-medium">Active Exams</p>
                       </div>
-                    ))}
+                      <p className="font-medium">{stats?.activeExams || 0}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-800 flex items-center justify-center">
+                          B+
+                        </div>
+                        <p className="font-medium">Completed Exams</p>
+                      </div>
+                      <p className="font-medium">{stats?.completedExams || 0}</p>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 text-indigo-800 flex items-center justify-center">
+                          C+
+                        </div>
+                        <p className="font-medium">Avg. Exam Score</p>
+                      </div>
+                      <p className="font-medium">{stats?.averageScore || 0}%</p>
+                    </div>
                   </div>
-                  <Button variant="outline" className="w-full mt-4" asChild>
-                    <Link href="/dashboard/teacher?tab=students">View All Students</Link>
-                  </Button>
                 </CardContent>
               </Card>
             </div>
@@ -256,8 +269,18 @@ function TeacherDashboardContent() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="students" className="pt-4">
-            <UserManagement userType="student" teacherView={true} />
+
+
+          <TabsContent value="available-exams" className="pt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Available Exams</CardTitle>
+                <CardDescription>Take exams that are available for teachers</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AvailableExams userRole="teacher" />
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
@@ -268,6 +291,7 @@ function TeacherDashboardContent() {
           onOpenChange={handleDialogClose}
           onSuccess={handleQuestionSuccess}
           initialTab="existing"
+          userRole="teacher" // Explicitly set the role to teacher
         />
       </div>
     </DashboardLayout>
@@ -503,12 +527,11 @@ const CreateExamForm: React.FC = () => {
             id="attempts"
             name="attempts"
             type="number"
-            min="1"
-            max="5"
-            value={formData.attempts}
-            onChange={handleChange}
-            required
+            value="5"
+            readOnly
+            className="bg-slate-50"
           />
+          <p className="text-xs text-muted-foreground">Students are limited to 5 attempts per exam. The best score will be displayed in results.</p>
         </div>
 
         <div className="space-y-2">

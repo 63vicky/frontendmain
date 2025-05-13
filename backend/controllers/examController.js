@@ -119,8 +119,30 @@ const createExam = async (req, res) => {
 
 const getTeacherExams = async (req, res) => {
   try {
-    const exams = await Exam.find({ createdBy: req.user._id })
+    let query = {};
+
+    // If user is a teacher:
+    // - Show exams created by the teacher
+    // - Show exams created by principals (shared with all teachers)
+    // If user is a principal, show all exams
+    if (req.user.role === 'teacher') {
+      // Find all principal user IDs
+      const User = require('../models/User');
+      const principals = await User.find({ role: 'principal' }).select('_id');
+      const principalIds = principals.map(p => p._id);
+
+      // Query for exams created by this teacher OR by any principal
+      query = {
+        $or: [
+          { createdBy: req.user._id },
+          { createdBy: { $in: principalIds } }
+        ]
+      };
+    }
+
+    const exams = await Exam.find(query)
       .populate('class', 'name section') // Populate class data
+      .populate('createdBy', 'name role') // Populate creator info with role
       .sort({ createdAt: -1 });
 
     // Update status for each exam
@@ -186,8 +208,8 @@ const updateExam = async (req, res) => {
       });
     }
 
-    // Check if user is the creator of the exam
-    if (exam.createdBy.toString() !== req.user._id.toString()) {
+    // Check if user is the creator of the exam or a principal
+    if (req.user.role !== 'principal' && exam.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         error: 'Not authorized to update this exam'
@@ -230,8 +252,8 @@ const deleteExam = async (req, res) => {
       });
     }
 
-    // Check if user is the creator of the exam
-    if (exam.createdBy.toString() !== req.user._id.toString()) {
+    // Check if user is the creator of the exam or a principal
+    if (req.user.role !== 'principal' && exam.createdBy.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
         error: 'Not authorized to delete this exam'

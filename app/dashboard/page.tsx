@@ -6,18 +6,14 @@ export default function DashboardPage() {
     <Tabs defaultValue="classes">
       <TabsList>
         <TabsTrigger value="classes">Classes</TabsTrigger>
-        <TabsTrigger value="students">Students</TabsTrigger>
         <TabsTrigger value="teachers">Teachers</TabsTrigger>
       </TabsList>
       <TabsContent value="classes">
         <ClassManagement />
-      </TabsContent>
-      <TabsContent value="students">
-        <div>Students content will go here</div>
       </TabsContent>
       <TabsContent value="teachers">
         <div>Teachers content will go here</div>
       </TabsContent>
     </Tabs>
   )
-} 
+}

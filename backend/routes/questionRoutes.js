@@ -15,39 +15,42 @@ router.get('/classes', authenticate, questionController.getClasses);
 // Get unique chapters for a subject
 router.get('/chapters/:subject', authenticate, questionController.getChapters);
 
-// Create new question
-router.post('/', 
-  authenticate, 
-  authorize('teacher', 'principal'), 
+// Get unique categories
+router.get('/categories', authenticate, questionController.getCategories);
+
+// Create new question (Teachers and Principals)
+router.post('/',
+  authenticate,
+  authorize('teacher', 'principal'), // Allow both teachers and principals
   questionController.createQuestion
 );
 
-// Update question
-router.put('/:id', 
-  authenticate, 
-  authorize('teacher', 'principal'), 
+// Update question (Teachers and Principals)
+router.put('/:id',
+  authenticate,
+  authorize('teacher', 'principal'), // Allow both teachers and principals
   questionController.updateQuestion
 );
 
-// Delete question
-router.delete('/:id', 
-  authenticate, 
-  authorize('teacher', 'principal'), 
+// Delete question (Teachers and Principals)
+router.delete('/:id',
+  authenticate,
+  authorize('teacher', 'principal'), // Allow both teachers and principals
   questionController.deleteQuestion
 );
 
 // Add question to exam
-router.post('/:id/add-to-exam', 
-  authenticate, 
-  authorize('teacher', 'principal'), 
+router.post('/:id/add-to-exam',
+  authenticate,
+  authorize('teacher', 'principal'),
   questionController.addToExam
 );
 
 // Remove question from exam
-router.post('/:id/remove-from-exam', 
-  authenticate, 
-  authorize('teacher', 'principal'), 
+router.post('/:id/remove-from-exam',
+  authenticate,
+  authorize('teacher', 'principal'),
   questionController.removeFromExam
 );
 
-module.exports = router; 
+module.exports = router;

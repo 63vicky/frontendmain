@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,11 +24,17 @@ export default function BulkUploadDetails() {
   const [filteredRecords, setFilteredRecords] = useState<any[]>([])
   const [records, setRecords] = useState<any[]>([])
 
+  // Unwrap params using use() before accessing properties
+  const unwrappedParams = use(params as any) as { id: string; role: string }
+  const uploadId = unwrappedParams.id
+  // Extract role for use in the DashboardLayout component
+  const role = unwrappedParams.role as "principal" | "teacher" | "student" | "admin"
+
   useEffect(() => {
     const fetchBulkUploadDetails = async () => {
       try {
         setLoading(true)
-        const response = await bulkUploadApi.getUploadById(params.id as string)
+        const response = await bulkUploadApi.getUploadById(uploadId)
         setBulkUpload(response.data)
 
         // Extract records from the processedData field
@@ -139,10 +145,10 @@ export default function BulkUploadDetails() {
       }
     }
 
-    if (params.id) {
+    if (uploadId) {
       fetchBulkUploadDetails()
     }
-  }, [params.id])
+  }, [uploadId])
 
   useEffect(() => {
     if (records.length > 0 && searchTerm) {
@@ -200,8 +206,7 @@ export default function BulkUploadDetails() {
     router.back()
   }
 
-  // Extract role from the URL path
-  const role = params.role as "principal" | "teacher" | "student" | "admin";
+  // Role is already extracted from unwrappedParams above
 
   if (loading) {
     return (

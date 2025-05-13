@@ -236,6 +236,7 @@ export const api = {
       type?: string;
       difficulty?: string;
       search?: string;
+      teacherId?: string;
     }) => {
       const queryParams = new URLSearchParams();
       if (filters) {
@@ -423,6 +424,30 @@ export const api = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token')}` },
         body: JSON.stringify({ studentIds }),
+      }),
+  },
+
+  // Teacher endpoints
+  teachers: {
+    getAll: async () => {
+      const response = await fetch(`${API_URL}/users/teachers`, {
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+      if (!response.ok) throw new Error('Failed to fetch teachers');
+      return response.json();
+    },
+    getById: (id: string) => fetchWithAuth<Teacher>(`/users/${id}`),
+    update: (id: string, teacherData: any) =>
+      fetchWithAuth<Teacher>(`/users/${id}`, {
+        method: 'PUT',
+        body: teacherData,
+      }),
+    delete: (id: string) =>
+      fetchWithAuth(`/users/${id}`, {
+        method: 'DELETE',
       }),
   },
 

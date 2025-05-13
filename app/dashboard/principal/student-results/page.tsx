@@ -17,7 +17,7 @@ import {
 import DashboardLayout from "@/components/dashboard-layout"
 import { Search, Download, Eye, Printer, Mail, MessageSquare } from "lucide-react"
 
-export default function PrincipalStudentResults() {
+export default function PrincipalTeacherResults() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedClass, setSelectedClass] = useState("all")
   const [selectedSubject, setSelectedSubject] = useState("all")
@@ -185,8 +185,8 @@ export default function PrincipalStudentResults() {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Student Results</h1>
-            <p className="text-muted-foreground">View and analyze student performance across all classes</p>
+            <h1 className="text-3xl font-bold">Teacher Results</h1>
+            <p className="text-muted-foreground">View and analyze teacher performance across all classes</p>
           </div>
           <Button
             className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
@@ -200,14 +200,14 @@ export default function PrincipalStudentResults() {
         <Card className="border-0 shadow-md">
           <CardHeader>
             <CardTitle>Results</CardTitle>
-            <CardDescription>View and analyze student results across all classes and subjects</CardDescription>
+            <CardDescription>View and analyze teacher results across all classes and subjects</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search students..."
+                  placeholder="Search teachers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 w-full"
@@ -244,7 +244,7 @@ export default function PrincipalStudentResults() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Student</TableHead>
+                  <TableHead>Teacher</TableHead>
                   <TableHead>Class</TableHead>
                   <TableHead>Exam</TableHead>
                   <TableHead>Subject</TableHead>
@@ -398,7 +398,7 @@ export default function PrincipalStudentResults() {
       <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
         <DialogContent className="max-w-4xl">
           <DialogHeader>
-            <DialogTitle>Student Result</DialogTitle>
+            <DialogTitle>Teacher Result</DialogTitle>
             <DialogDescription>Detailed result for {selectedStudent?.student}</DialogDescription>
           </DialogHeader>
 
@@ -427,7 +427,7 @@ export default function PrincipalStudentResults() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Student Information</h3>
+                  <h3 className="text-lg font-medium">Teacher Information</h3>
                   <div className="bg-slate-50 p-4 rounded-lg space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
@@ -439,12 +439,12 @@ export default function PrincipalStudentResults() {
                         <p>{selectedStudent.class}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Roll Number</p>
-                        <p>8A01</p>
+                        <p className="text-sm text-muted-foreground">Teacher ID</p>
+                        <p>T8A01</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Teacher</p>
-                        <p>{selectedStudent.teacher}</p>
+                        <p className="text-sm text-muted-foreground">Department</p>
+                        <p>Mathematics</p>
                       </div>
                     </div>
                   </div>

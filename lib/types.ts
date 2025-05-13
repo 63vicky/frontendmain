@@ -44,7 +44,11 @@ export interface Exam {
   }
   avgScore?: number
   questions?: Question[]
-  createdBy: string
+  createdBy: string | {
+    _id: string
+    name: string
+    role?: 'principal' | 'teacher' | 'student' | 'admin'
+  }
   createdAt: string
   updatedAt: string
 }

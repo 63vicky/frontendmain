@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -38,17 +38,12 @@ export default function TeacherBulkUploadPage() {
     fetchRecentUploads("all")
   }, [])
 
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const studentFileInputRef = useRef<HTMLInputElement>(null)
+
 
   // Fetch recent uploads on component mount or when tab/filter changes
   useEffect(() => {
-    if (activeTab === "students") {
-      fetchRecentUploads("students")
-    } else if (activeTab === "questions") {
+    if (activeTab === "questions") {
       fetchRecentUploads("questions")
-    } else if (activeTab === "teachers") {
-      fetchRecentUploads("teachers")
     } else if (activeTab === "uploads") {
       fetchRecentUploads(uploadFilter)
     }
@@ -77,32 +72,9 @@ export default function TeacherBulkUploadPage() {
     setUploadProgress(0)
   }
 
-  const handleStudentFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0] || null
+  // Student file change handler removed
 
-    // Validate file type
-    if (file) {
-      const fileExtension = file.name.split('.').pop()?.toLowerCase()
-      if (!['csv', 'xlsx', 'xls'].includes(fileExtension || '')) {
-        toast.error("Please select a CSV or Excel file")
-        return
-      }
-    }
-
-    setSelectedFile(file)
-    setUploadStatus("idle")
-    setUploadProgress(0)
-  }
-
-  // Teacher file change handler removed - teachers can't add other teachers
-
-  const handleBrowseClick = (tab: string) => {
-    if (tab === "students") {
-      studentFileInputRef.current?.click()
-    } else if (tab === "questions") {
-      fileInputRef.current?.click()
-    }
-  }
+  // Browse click handler removed
 
   const simulateUpload = () => {
     // Instead of simulating, let's use the real upload function
@@ -135,14 +107,8 @@ export default function TeacherBulkUploadPage() {
         })
       }, 300)
 
-      // Make API call based on active tab
-      let response;
-      if (activeTab === "students") {
-        response = await bulkUploadApi.uploadStudents(formData);
-      // Teacher upload removed - teachers can't add other teachers
-      } else if (activeTab === "questions") {
-        response = await bulkUploadApi.uploadQuestions(formData);
-      }
+      // Make API call for questions upload
+      let response = await bulkUploadApi.uploadQuestions(formData);
 
       // Clear interval and set to 100%
       clearInterval(interval)
@@ -159,12 +125,8 @@ export default function TeacherBulkUploadPage() {
       // Refresh recent uploads
       fetchRecentUploads(activeTab)
 
-      // Show success message based on active tab
-      if (activeTab === "students") {
-        toast.success("Students uploaded successfully");
-      } else if (activeTab === "questions") {
-        toast.success("Questions uploaded successfully");
-      }
+      // Show success message
+      toast.success("Questions uploaded successfully");
     } catch (error) {
       console.error("Upload error:", error)
       setUploadStatus("error")
@@ -199,12 +161,7 @@ export default function TeacherBulkUploadPage() {
   // Sample CSV generation function removed as we now use API endpoints for templates
 
   const handleDownloadTemplate = () => {
-    if (activeTab === "students") {
-      bulkUploadApi.downloadStudentTemplate();
-    // Teacher template removed - teachers can't add other teachers
-    } else if (activeTab === "questions") {
-      bulkUploadApi.downloadQuestionTemplate();
-    }
+    bulkUploadApi.downloadQuestionTemplate();
   }
 
   return (
@@ -213,19 +170,15 @@ export default function TeacherBulkUploadPage() {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
           <div>
             <h1 className="text-3xl font-bold">Bulk Upload</h1>
-            <p className="text-muted-foreground">Upload multiple questions, student data, or results at once</p>
+            <p className="text-muted-foreground">Upload multiple questions at once</p>
           </div>
         </div>
 
         <Tabs defaultValue="questions" className="w-full" onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="questions" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
               <span>Questions</span>
-            </TabsTrigger>
-            <TabsTrigger value="students" className="flex items-center gap-2">
-              <FileUp className="h-4 w-4" />
-              <span>Student Data</span>
             </TabsTrigger>
             <TabsTrigger value="uploads" className="flex items-center gap-2">
               <FileText className="h-4 w-4" />
@@ -280,7 +233,7 @@ export default function TeacherBulkUploadPage() {
                         Supports CSV, Excel (.xlsx), or our template format
                       </p>
                       <p className="text-xs text-muted-foreground mb-4">
-                        The template includes separate columns for Class and Section for better organization.
+                        The template includes optional columns for Class and Section for better organization.
                       </p>
                       <div className="flex gap-4">
                         <Button variant="outline" asChild>
@@ -395,202 +348,7 @@ export default function TeacherBulkUploadPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="students" className="space-y-4 pt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Upload Student Data</CardTitle>
-                <CardDescription>Upload student information, class assignments, and other data. Passwords will be securely hashed during import.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
 
-
-                <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center">
-                  {/* Hidden file input */}
-                  <Input
-                    type="file"
-                    ref={studentFileInputRef}
-                    className="hidden"
-                    accept=".csv,.xlsx,.xls"
-                    onChange={handleStudentFileChange}
-                  />
-
-                  {uploadStatus === "idle" && (
-                    <>
-                      <FileUp className="h-12 w-12 text-indigo-500 dark:text-indigo-400 mb-4" />
-                      <h3 className="text-lg font-medium mb-1">
-                        {selectedFile ? selectedFile.name : "Drag and drop your file here"}
-                      </h3>
-                      <p className="text-sm text-muted-foreground mb-2">
-                        Supports CSV, Excel (.xlsx), or our template format
-                      </p>
-                      <p className="text-xs text-muted-foreground mb-4">
-                        The template includes separate columns for Class and Section. Passwords will be automatically hashed for security.
-                        Make sure the Class and Section values match existing classes in the system.
-                      </p>
-                      {selectedFile ? (
-                        <div className="flex gap-4">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedFile(null)
-                              if (studentFileInputRef.current) {
-                                studentFileInputRef.current.value = ""
-                              }
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button onClick={handleUpload}>
-                            <Upload className="h-4 w-4 mr-2" />
-                            Upload File
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="flex gap-4">
-                          <Button
-                            variant="outline"
-                            onClick={() => handleBrowseClick("students")}
-                          >
-                            Browse Files
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={handleDownloadTemplate}
-                          >
-                            <Download className="h-4 w-4 mr-2" />
-                            Download Template
-                          </Button>
-                        </div>
-                      )}
-                    </>
-                  )}
-
-                  {uploadStatus === "uploading" && (
-                    <div className="w-full space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <File className="h-8 w-8 text-indigo-500 dark:text-indigo-400" />
-                          <div>
-                            <p className="font-medium">{selectedFile?.name}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {selectedFile && (selectedFile.size / 1024).toFixed(2)} KB
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <Progress value={uploadProgress} className="h-2" />
-                      <p className="text-sm text-muted-foreground text-center">
-                        Uploading... {Math.round(uploadProgress)}%
-                      </p>
-                    </div>
-                  )}
-
-                  {uploadStatus === "success" && uploadResult && (
-                    <div className="w-full space-y-4">
-                      <div className="flex items-center justify-center">
-                        <CheckCircle className="h-12 w-12 text-green-500 dark:text-green-400 mb-4" />
-                      </div>
-                      <h3 className="text-lg font-medium text-center">Upload Successful!</h3>
-                      <p className="text-sm text-muted-foreground text-center">
-                        {uploadResult.successCount} of {uploadResult.totalRecords} students have been uploaded successfully
-                        {uploadResult.failureCount > 0 && ` (${uploadResult.failureCount} failed)`}
-                      </p>
-                      <div className="flex justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setUploadStatus("idle")
-                            setUploadProgress(0)
-                            setSelectedFile(null)
-                            if (studentFileInputRef.current) {
-                              studentFileInputRef.current.value = ""
-                            }
-                          }}
-                        >
-                          <RefreshCw className="h-4 w-4 mr-2" />
-                          Upload Another
-                        </Button>
-                        <Button
-                          onClick={() => {
-                            setActiveTab("uploads")
-                            setUploadFilter("students")
-                            fetchRecentUploads("students")
-                          }}
-                        >
-                          View Uploaded Students
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {uploadStatus === "error" && (
-                    <div className="w-full space-y-4">
-                      <div className="flex items-center justify-center">
-                        <AlertCircle className="h-12 w-12 text-red-500 dark:text-red-400 mb-4" />
-                      </div>
-                      <h3 className="text-lg font-medium text-center">Upload Failed</h3>
-                      <p className="text-sm text-red-500 dark:text-red-400 text-center">
-                        There was an error uploading your file. Please check the format and try again.
-                      </p>
-                      <div className="flex justify-center gap-2">
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setUploadStatus("idle")
-                            setUploadProgress(0)
-                            setSelectedFile(null)
-                            if (studentFileInputRef.current) {
-                              studentFileInputRef.current.value = ""
-                            }
-                          }}
-                        >
-                          Try Again
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Recent uploads */}
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-4">Recent Uploads</h3>
-                  {recentUploads.length > 0 ? (
-                    <div className="space-y-2">
-                      {recentUploads.map((upload) => (
-                        <div key={upload._id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                          <div className="flex items-center">
-                            <FileText className="h-5 w-5 text-indigo-500 mr-2" />
-                            <div>
-                              <p className="font-medium">{upload.originalName}</p>
-                              <p className="text-xs text-muted-foreground">
-                                Uploaded on {new Date(upload.createdAt).toLocaleDateString()} •
-                                {upload.successCount} students
-                              </p>
-                            </div>
-                          </div>
-                          <Badge className={
-                            upload.status === "completed"
-                              ? "bg-green-500"
-                              : upload.status === "processing"
-                                ? "bg-yellow-500"
-                                : "bg-red-500"
-                          }>
-                            {upload.status === "completed"
-                              ? "Processed"
-                              : upload.status === "processing"
-                                ? "Processing"
-                                : "Failed"}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground text-center py-4">No recent uploads found</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Teacher upload tab removed - teachers can't add other teachers */}
 
@@ -616,16 +374,7 @@ export default function TeacherBulkUploadPage() {
                       >
                         All
                       </Button>
-                      <Button
-                        variant={uploadFilter === "students" ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setUploadFilter("students");
-                          fetchRecentUploads("students");
-                        }}
-                      >
-                        Students
-                      </Button>
+
                       <Button
                         variant={uploadFilter === "questions" ? "default" : "outline"}
                         size="sm"

@@ -3,13 +3,20 @@
 import { useState, useEffect, Suspense } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Loader2 } from "lucide-react"
 import DashboardLayout from "@/components/dashboard-layout"
 import UserManagement from "@/components/user-management"
 import ExamAnalytics from "@/components/exam-analytics"
+import ExamManagement from "@/components/exam-management"
+import { QuestionDialog } from "@/components/question-dialog"
 import { useSearchParams, useRouter } from "next/navigation"
 import { dashboardService } from "@/lib/services/dashboard"
 import { useToast } from "@/hooks/use-toast"
-import type { DashboardStats, RecentExam, ClassPerformance } from "@/lib/types"
+import type { DashboardStats, RecentExam, ClassPerformance, Exam, Class } from "@/lib/types"
 
 export default function PrincipalDashboard() {
   return (
@@ -25,13 +32,15 @@ function PrincipalDashboardContent() {
   const [recentExams, setRecentExams] = useState<RecentExam[]>([])
   const [classPerformance, setClassPerformance] = useState<ClassPerformance[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedExam, setSelectedExam] = useState<Exam | null>(null)
+  const [isQuestionDialogOpen, setIsQuestionDialogOpen] = useState(false)
   const searchParams = useSearchParams()
   const router = useRouter()
   const { toast } = useToast()
 
   useEffect(() => {
     const tab = searchParams.get("tab")
-    if (tab && ["overview", "teachers", "students", "exams"].includes(tab)) {
+    if (tab && ["overview", "teachers", "exams", "manage-exams", "create"].includes(tab)) {
       setActiveTab(tab)
     }
   }, [searchParams])
@@ -69,18 +78,35 @@ function PrincipalDashboardContent() {
     router.push(`/dashboard/principal?tab=${value}`, { scroll: false })
   }
 
+  const handleAddQuestion = (exam: Exam) => {
+    setSelectedExam(exam)
+    setIsQuestionDialogOpen(true)
+  }
+
+  const handleQuestionSuccess = () => {
+    // Refresh data if needed
+  }
+
+  const handleDialogClose = (isOpen: boolean) => {
+    if (!isOpen) {
+      setIsQuestionDialogOpen(false)
+      setSelectedExam(null)
+    }
+  }
+
   return (
     <DashboardLayout role="principal">
       <div className="flex flex-col gap-4">
         <h1 className="text-3xl font-bold">Principal Dashboard</h1>
-        <p className="text-muted-foreground">Manage teachers, students, and oversee all exams and results</p>
+        <p className="text-muted-foreground">Manage teachers, oversee all exams and analyze results</p>
 
         <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="teachers">Teachers</TabsTrigger>
-            <TabsTrigger value="students">Students</TabsTrigger>
-            <TabsTrigger value="exams">Exams</TabsTrigger>
+            <TabsTrigger value="exams">Analytics</TabsTrigger>
+            <TabsTrigger value="manage-exams">Manage Exams</TabsTrigger>
+            <TabsTrigger value="create">Create Exam</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-4 pt-4">
@@ -101,10 +127,10 @@ function PrincipalDashboardContent() {
                   </Card>
                   <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">Total Students</CardTitle>
+                      <CardTitle className="text-sm font-medium">Total Classes</CardTitle>
                     </CardHeader>
                     <CardContent>
-                      <div className="text-2xl font-bold">{stats.totalStudents || 0}</div>
+                      <div className="text-2xl font-bold">{stats.totalClasses || 0}</div>
                     </CardContent>
                   </Card>
                   <Card>
@@ -140,7 +166,7 @@ function PrincipalDashboardContent() {
                               <p className="text-sm text-muted-foreground">{exam.date}</p>
                             </div>
                             <span className={`text-sm ${
-                              exam.status === "Active" ? "text-green-600" : 
+                              exam.status === "Active" ? "text-green-600" :
                               exam.status === "Completed" ? "text-blue-600" : "text-yellow-600"
                             }`}>
                               {exam.status}
@@ -181,15 +207,317 @@ function PrincipalDashboardContent() {
             <UserManagement userType="teacher" />
           </TabsContent>
 
-          <TabsContent value="students" className="pt-4">
-            <UserManagement userType="student" />
-          </TabsContent>
-
           <TabsContent value="exams" className="pt-4">
             <ExamAnalytics />
           </TabsContent>
+
+          <TabsContent value="manage-exams" className="pt-4">
+            <ExamManagement onAddQuestion={handleAddQuestion} />
+          </TabsContent>
+
+          <TabsContent value="create" className="pt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Create New Exam</CardTitle>
+                <CardDescription>Set up a new exam with customized questions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CreateExamForm />
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
+
+        {/* Question Dialog */}
+        <QuestionDialog
+          exam={selectedExam}
+          open={isQuestionDialogOpen}
+          onOpenChange={handleDialogClose}
+          onSuccess={handleQuestionSuccess}
+          initialTab="existing"
+          userRole="principal" // Explicitly set the role to principal
+        />
       </div>
     </DashboardLayout>
+  )
+}
+
+const CreateExamForm: React.FC = () => {
+  const [formData, setFormData] = useState({
+    title: "",
+    subject: "",
+    class: "",
+    chapter: "",
+    duration: 60,
+    startDate: "",
+    endDate: "",
+    attempts: 5,
+  })
+  const [classes, setClasses] = useState<Class[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const { toast } = useToast()
+  const router = useRouter()
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
+  useEffect(() => {
+    // Fetch classes when component mounts
+    const fetchClasses = async () => {
+      try {
+        const response = await fetch(`${API_URL}/classes`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch classes');
+        }
+
+        const data = await response.json();
+        setClasses(data.data || []);
+      } catch (err) {
+        console.error('Error fetching classes:', err);
+        toast({
+          title: "Error",
+          description: "Failed to load classes. Please try again.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    fetchClasses();
+  }, [API_URL, toast]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const handleSelectChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }))
+  }
+
+  const validateForm = () => {
+    if (!formData.title || !formData.subject || !formData.class || !formData.chapter) {
+      setError("All fields are required")
+      return false
+    }
+
+    if (formData.duration < 5 || formData.duration > 180) {
+      setError("Duration must be between 5 and 180 minutes")
+      return false
+    }
+
+    if (formData.attempts < 1 || formData.attempts > 5) {
+      setError("Maximum attempts must be between 1 and 5")
+      return false
+    }
+
+    if (!formData.startDate || !formData.endDate) {
+      setError("Start and end dates are required")
+      return false
+    }
+
+    const startDate = new Date(formData.startDate)
+    const endDate = new Date(formData.endDate)
+
+    if (endDate <= startDate) {
+      setError("End date must be after start date")
+      return false
+    }
+
+    return true
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!validateForm()) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      const response = await fetch(`${API_URL}/exams`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: JSON.stringify(formData)
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create exam')
+      }
+
+      toast({
+        title: "Success",
+        description: "Exam created successfully",
+      })
+
+      // Reset form
+      setFormData({
+        title: "",
+        subject: "",
+        class: "",
+        chapter: "",
+        duration: 60,
+        startDate: "",
+        endDate: "",
+        attempts: 5,
+      })
+
+      // Redirect to exams tab
+      router.push('/dashboard/principal?tab=manage-exams')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create exam')
+      toast({
+        title: "Error",
+        description: err instanceof Error ? err.message : 'Failed to create exam',
+        variant: "destructive",
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-200 rounded-md text-red-600">
+          {error}
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="title">Exam Title</Label>
+          <Input
+            id="title"
+            name="title"
+            value={formData.title}
+            onChange={handleChange}
+            placeholder="e.g., Mathematics Chapter 2 Test"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="subject">Subject</Label>
+          <Input
+            id="subject"
+            name="subject"
+            value={formData.subject}
+            onChange={handleChange}
+            placeholder="e.g., Mathematics"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="class">Class</Label>
+          <Select
+            name="class"
+            value={formData.class}
+            onValueChange={(value) => handleSelectChange("class", value)}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select a class" />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map((cls) => (
+                <SelectItem key={cls._id} value={cls._id}>
+                  {cls.name} - {cls.section}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="chapter">Chapter/Topic</Label>
+          <Input
+            id="chapter"
+            name="chapter"
+            value={formData.chapter}
+            onChange={handleChange}
+            placeholder="e.g., Chapter 2: Algebra"
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="duration">Duration (minutes)</Label>
+          <Input
+            id="duration"
+            name="duration"
+            type="number"
+            min="5"
+            max="180"
+            value={formData.duration}
+            onChange={handleChange}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="attempts">Max Attempts</Label>
+          <Input
+            id="attempts"
+            name="attempts"
+            type="number"
+            value="5"
+            readOnly
+            className="bg-slate-50"
+          />
+          <p className="text-xs text-muted-foreground">Students are limited to 5 attempts per exam</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="startDate">Start Date</Label>
+          <Input
+            id="startDate"
+            name="startDate"
+            type="date"
+            value={formData.startDate}
+            onChange={handleChange}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="endDate">End Date</Label>
+          <Input
+            id="endDate"
+            name="endDate"
+            type="date"
+            value={formData.endDate}
+            onChange={handleChange}
+            required
+          />
+        </div>
+      </div>
+
+      <div className="pt-4">
+        <Button type="submit" className="mr-2" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Creating...
+            </>
+          ) : (
+            'Create Exam'
+          )}
+        </Button>
+        <Button type="button" variant="outline" onClick={() => router.push('/dashboard/principal?tab=manage-exams')}>
+          Cancel
+        </Button>
+      </div>
+    </form>
   )
 }

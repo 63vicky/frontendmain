@@ -49,6 +49,7 @@ const Exam = mongoose.models.Exam || mongoose.model('Exam', new mongoose.Schema(
     max: {
       type: Number,
       required: true,
+      default: 5,
       min: 1,
       max: 5
     }
@@ -78,4 +79,4 @@ Exam.schema.pre('save', function(next) {
 Exam.schema.index({ status: 1, startDate: 1, endDate: 1 });
 Exam.schema.index({ createdBy: 1, status: 1 });
 
-module.exports = Exam; 
+module.exports = Exam;

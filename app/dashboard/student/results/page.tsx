@@ -27,6 +27,13 @@ interface ExtendedResult {
   rating: string;
   status: string;
   timeSpent: string;
+  isBestScore: boolean;
+  attemptDetails: Array<{
+    _id: string;
+    attemptNumber: number;
+    marks: number;
+    createdAt: string;
+  }>;
 }
 
 export default function StudentResults() {
@@ -112,6 +119,13 @@ export default function StudentResults() {
             ? result.answers.reduce((sum, a) => sum + (a.points || 10), 0)
             : 100 // Default to 100 if no answers available
 
+          // Get total attempts information
+          const totalAttempts = result.totalAttempts || result.attemptNumber || 1
+          const attemptDetails = result.attemptDetails || []
+
+          // If this is the best score, add a flag
+          const isBestScore = true // Since the backend now returns only the best scores
+
           return {
             _id: result._id,
             exam: examTitle,
@@ -119,11 +133,13 @@ export default function StudentResults() {
             date: formattedDate,
             score: score,
             totalMarks: totalMarks,
-            attempts: result.attemptNumber || 1,
+            attempts: totalAttempts, // Use the total attempts count
             maxAttempts: maxAttempts,
             rating: rating,
             status: result.status || "Completed",
-            timeSpent: timeSpent
+            timeSpent: timeSpent,
+            isBestScore: isBestScore,
+            attemptDetails: attemptDetails
           }
         })
 
@@ -278,13 +294,21 @@ export default function StudentResults() {
                                   <span className="text-sm text-muted-foreground">
                                     ({Math.round((result.score / result.totalMarks) * 100)}%)
                                   </span>
+                                  {result.isBestScore && result.attempts > 1 && (
+                                    <Badge className="bg-green-500 ml-1">Best Score</Badge>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
                                 <Badge className={getRatingColor(result.rating)}>{result.rating}</Badge>
                               </TableCell>
                               <TableCell>
-                                {result.attempts}/{result.maxAttempts}
+                                <div className="flex items-center gap-1">
+                                  <span>{result.attempts}/{result.maxAttempts}</span>
+                                  {result.attempts > 1 && (
+                                    <span className="text-xs text-muted-foreground ml-1">(Best shown)</span>
+                                  )}
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <div className="flex items-center">

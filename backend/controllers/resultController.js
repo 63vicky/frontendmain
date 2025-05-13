@@ -214,7 +214,7 @@ const getStudentResults = async (req, res) => {
     }
 
     // Get all results for this student
-    const studentResults = await Result.find({ studentId })
+    const allResults = await Result.find({ studentId })
       .populate({
         path: 'examId',
         select: 'title subject class attempts startDate endDate createdAt createdBy',
@@ -231,7 +231,48 @@ const getStudentResults = async (req, res) => {
       })
       .populate('createdBy', 'name email');
 
-    res.json(studentResults);
+    // Group results by examId and keep only the best score for each exam
+    const examMap = new Map();
+
+    // First, organize results by exam
+    allResults.forEach(result => {
+      const examId = result.examId?._id?.toString() || result.examId?.toString();
+
+      if (!examMap.has(examId)) {
+        examMap.set(examId, {
+          bestResult: result,
+          allAttempts: [result]
+        });
+      } else {
+        const examData = examMap.get(examId);
+        examData.allAttempts.push(result);
+
+        // Compare scores to find the best result
+        const currentBestScore = examData.bestResult.marks || 0;
+        const newScore = result.marks || 0;
+
+        if (newScore > currentBestScore) {
+          examData.bestResult = result;
+        }
+      }
+    });
+
+    // Extract the best results for each exam
+    const bestResults = Array.from(examMap.values()).map(examData => {
+      // Add attempt information to the best result
+      const bestResult = examData.bestResult;
+      bestResult._doc.totalAttempts = examData.allAttempts.length;
+      bestResult._doc.attemptDetails = examData.allAttempts.map(attempt => ({
+        _id: attempt._id,
+        attemptNumber: attempt.attemptNumber,
+        marks: attempt.marks,
+        createdAt: attempt.createdAt
+      }));
+
+      return bestResult;
+    });
+
+    res.json(bestResults);
   } catch (error) {
     console.error('Get student results error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -342,9 +383,22 @@ const submitStudentResult = async (req, res) => {
 
     // Check if student has reached maximum attempts
     if (exam.attempts && attemptCount >= exam.attempts.max) {
+      // Find the best result to return
+      let bestResult = null;
+      let bestScore = -1;
+
+      for (const result of studentResults) {
+        const score = result.marks || 0;
+        if (score > bestScore) {
+          bestScore = score;
+          bestResult = result;
+        }
+      }
+
       return res.status(400).json({
         message: `Maximum attempts reached (${exam.attempts.max})`,
-        existingResults: studentResults
+        existingResults: studentResults,
+        bestResult: bestResult
       });
     }
 

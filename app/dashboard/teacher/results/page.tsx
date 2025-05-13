@@ -25,7 +25,7 @@ export default function TeacherResults() {
   const [selectedClass, setSelectedClass] = useState("all")
   const [selectedExam, setSelectedExam] = useState("all")
   const [showResultDialog, setShowResultDialog] = useState(false)
-  const [selectedStudent, setSelectedStudent] = useState<any>(null)
+  const [selectedTeacher, setSelectedTeacher] = useState<any>(null)
   const [results, setResults] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -69,10 +69,10 @@ const getClassNameFromExam = (examData: any): string => {
 
         // Transform data for display
         const transformedResults = resultsData.map((result: any) => {
-          // Extract student name
-          const studentName = result.studentId && typeof result.studentId === 'object'
+          // Extract teacher name
+          const teacherName = result.studentId && typeof result.studentId === 'object'
             ? result.studentId.name
-            : 'Unknown Student'
+            : 'Unknown Teacher'
 
           // Extract exam details
           const examTitle = result.examId && typeof result.examId === 'object'
@@ -83,20 +83,7 @@ const getClassNameFromExam = (examData: any): string => {
             ? result.examId.subject
             : ''
 
-          // Get class from student data
-          let studentClass = 'Unknown Class';
-
-          if (result.studentId && typeof result.studentId === 'object') {
-            if (typeof result.studentId.class === 'string') {
-              // If class is a string, use it directly
-              studentClass = result.studentId.class || 'Unknown Class';
-            } else if (result.studentId.class && typeof result.studentId.class === 'object') {
-              // If class is an object (reference to Class document), use the name property
-              studentClass = result.studentId.class.name
-                ? `${result.studentId.class.name} ${result.studentId.class.section || ''}`
-                : 'Unknown Class';
-            }
-          }
+          // Class is already handled by getClassNameFromExam function
 
           // Calculate score and status
           const score = result.marks || 0
@@ -117,7 +104,7 @@ const getClassNameFromExam = (examData: any): string => {
 
           return {
             id: result._id,
-            student: studentName,
+            teacher: teacherName,
             class: getClassNameFromExam(result.examId),
             exam: examTitle,
             subject: examSubject,
@@ -154,8 +141,7 @@ const getClassNameFromExam = (examData: any): string => {
   // Filter results based on search query, class, and exam
   const filteredResults = results.filter(
     (result) =>
-      (result.student.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        result.exam.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      result.exam.toLowerCase().includes(searchQuery.toLowerCase()) &&
       (selectedClass === "all" || result.class === selectedClass) &&
       (selectedExam === "all" || result.exam === selectedExam),
   )
@@ -164,8 +150,8 @@ const getClassNameFromExam = (examData: any): string => {
   const classes = Array.from(new Set(results.map((result) => result.class)))
   const exams = Array.from(new Set(results.map((result) => result.exam)))
 
-  const handleViewResult = (student: any) => {
-    setSelectedStudent(student)
+  const handleViewResult = (teacher: any) => {
+    setSelectedTeacher(teacher)
     setShowResultDialog(true)
   }
 
@@ -174,8 +160,8 @@ const getClassNameFromExam = (examData: any): string => {
       <div className="flex flex-col gap-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Student Results</h1>
-            <p className="text-muted-foreground">View and analyze student performance</p>
+            <h1 className="text-3xl font-bold">Exam Results</h1>
+            <p className="text-muted-foreground">View and analyze exam performance</p>
           </div>
           <Button
             className="bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800"
@@ -189,14 +175,14 @@ const getClassNameFromExam = (examData: any): string => {
         <Card className="border-0 shadow-md">
           <CardHeader>
             <CardTitle>Results</CardTitle>
-            <CardDescription>View and analyze student results</CardDescription>
+            <CardDescription>View and analyze teacher results</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col md:flex-row justify-between gap-4 mb-4">
               <div className="relative w-full md:w-64">
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search students..."
+                  placeholder="Search exams..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-8 w-full"
@@ -250,13 +236,12 @@ const getClassNameFromExam = (examData: any): string => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Student</TableHead>
-                    <TableHead>Class</TableHead>
+                    <TableHead>Teacher</TableHead>
                     <TableHead>Exam</TableHead>
+                    <TableHead>Class</TableHead>
                     <TableHead>Score</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
-                    <TableHead>Attempts</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -270,9 +255,9 @@ const getClassNameFromExam = (examData: any): string => {
                   ) : (
                     filteredResults.map((result) => (
                       <TableRow key={result.id}>
-                        <TableCell className="font-medium">{result.student}</TableCell>
-                        <TableCell>{result.class}</TableCell>
+                        <TableCell className="font-medium">{result.teacher}</TableCell>
                         <TableCell>{result.exam}</TableCell>
+                        <TableCell>{result.class}</TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <span className="font-medium">
@@ -289,7 +274,6 @@ const getClassNameFromExam = (examData: any): string => {
                           </Badge>
                         </TableCell>
                         <TableCell>{result.date}</TableCell>
-                        <TableCell>{result.attempts}/{result.maxAttempts || 5}</TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="sm" onClick={() => handleViewResult(result)}>
                             <Eye className="h-4 w-4 text-indigo-500" />
@@ -310,8 +294,8 @@ const getClassNameFromExam = (examData: any): string => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-0 shadow-md">
             <CardHeader>
-              <CardTitle>Class Performance</CardTitle>
-              <CardDescription>Average scores by class</CardDescription>
+              <CardTitle>Teacher Performance</CardTitle>
+              <CardDescription>Average scores by Teacher</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -402,27 +386,27 @@ const getClassNameFromExam = (examData: any): string => {
       <Dialog open={showResultDialog} onOpenChange={setShowResultDialog}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Student Result</DialogTitle>
-            <DialogDescription>Detailed result for {selectedStudent?.student}</DialogDescription>
+            <DialogTitle>Exam Result</DialogTitle>
+            <DialogDescription>Detailed result for {selectedTeacher?.exam}</DialogDescription>
           </DialogHeader>
 
-          {selectedStudent && (
+          {selectedTeacher && (
             <div className="space-y-6">
               <div className="bg-gradient-to-r from-indigo-600 to-indigo-700 text-white p-6 rounded-lg">
                 <div className="flex flex-col md:flex-row justify-between">
                   <div>
-                    <h2 className="text-2xl font-bold">{selectedStudent.exam}</h2>
+                    <h2 className="text-2xl font-bold">{selectedTeacher.exam}</h2>
                     <p className="text-indigo-100">
-                      {selectedStudent.class} • {new Date(selectedStudent.date).toLocaleDateString()}
+                      {selectedTeacher.class} • {new Date(selectedTeacher.date).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="mt-4 md:mt-0 text-right">
                     <div className="text-4xl font-bold">
-                      {selectedStudent.score}/{selectedStudent.totalMarks}
+                      {selectedTeacher.score}/{selectedTeacher.totalMarks}
                     </div>
                     <p className="text-indigo-100">
-                      {Math.round((selectedStudent.score / selectedStudent.totalMarks) * 100)}% •{" "}
-                      {selectedStudent.status}
+                      {Math.round((selectedTeacher.score / selectedTeacher.totalMarks) * 100)}% •{" "}
+                      {selectedTeacher.status}
                     </p>
                   </div>
                 </div>
@@ -430,24 +414,24 @@ const getClassNameFromExam = (examData: any): string => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h3 className="text-lg font-medium">Student Information</h3>
+                  <h3 className="text-lg font-medium">Exam Information</h3>
                   <div className="bg-slate-50 p-4 rounded-lg space-y-2">
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <p className="text-sm text-muted-foreground">Name</p>
-                        <p className="font-medium">{selectedStudent.student}</p>
+                        <p className="text-sm text-muted-foreground">Exam</p>
+                        <p className="font-medium">{selectedTeacher.exam}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Class</p>
-                        <p>{selectedStudent.class}</p>
+                        <p>{selectedTeacher.class}</p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Roll Number</p>
-                        <p>8A01</p>
+                        <p className="text-sm text-muted-foreground">Date</p>
+                        <p>{selectedTeacher.date}</p>
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Attempts</p>
-                        <p>{selectedStudent.attempts}/5</p>
+                        <p>{selectedTeacher.attempts}/5</p>
                       </div>
                     </div>
                   </div>
@@ -458,22 +442,22 @@ const getClassNameFromExam = (examData: any): string => {
                       <div className="flex justify-between mb-1">
                         <p className="text-sm font-medium">Overall Score</p>
                         <p className="text-sm font-medium">
-                          {Math.round((selectedStudent.score / selectedStudent.totalMarks) * 100)}%
+                          {Math.round((selectedTeacher.score / selectedTeacher.totalMarks) * 100)}%
                         </p>
                       </div>
                       <div className="h-2 w-full rounded-full bg-slate-200">
                         <div
                           className={`h-2 rounded-full ${
-                            selectedStudent.score >= 85
+                            selectedTeacher.score >= 85
                               ? "bg-green-500"
-                              : selectedStudent.score >= 70
+                              : selectedTeacher.score >= 70
                                 ? "bg-blue-500"
-                                : selectedStudent.score >= 50
+                                : selectedTeacher.score >= 50
                                   ? "bg-yellow-500"
                                   : "bg-red-500"
                           }`}
                           style={{
-                            width: `${Math.round((selectedStudent.score / selectedStudent.totalMarks) * 100)}%`,
+                            width: `${Math.round((selectedTeacher.score / selectedTeacher.totalMarks) * 100)}%`,
                           }}
                         />
                       </div>
@@ -537,9 +521,9 @@ const getClassNameFromExam = (examData: any): string => {
                     <div className="h-40 flex items-end justify-around">
                       <div className="flex flex-col items-center">
                         <div className="w-16 bg-indigo-500 rounded-t-md" style={{ height: "120px" }}></div>
-                        <p className="mt-2 text-sm font-medium">Student</p>
+                        <p className="mt-2 text-sm font-medium">Teacher</p>
                         <p className="text-xs text-muted-foreground">
-                          {Math.round((selectedStudent.score / selectedStudent.totalMarks) * 100)}%
+                          {Math.round((selectedTeacher.score / selectedTeacher.totalMarks) * 100)}%
                         </p>
                       </div>
                       <div className="flex flex-col items-center">

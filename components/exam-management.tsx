@@ -48,8 +48,24 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingExam, setEditingExam] = useState<Exam | null>(null)
   const [classes, setClasses] = useState<any[]>([])
+  const [userRole, setUserRole] = useState<string>("teacher")
   const { toast } = useToast()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+
+  // Get user role when component mounts
+  useEffect(() => {
+    const user = localStorage.getItem('user');
+    if (user) {
+      try {
+        const userData = JSON.parse(user);
+        if (userData.role) {
+          setUserRole(userData.role);
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+    }
+  }, []);
 
   // Fetch classes when component mounts
   useEffect(() => {
@@ -77,7 +93,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
     };
 
     fetchClasses();
-  }, [API_URL]);
+  }, [API_URL, toast]);
 
   // Memoize fetch options
   const fetchOptions = useMemo(() => ({
@@ -346,7 +362,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
             />
           </div>
           <Button asChild>
-            <Link href="/dashboard/teacher?tab=create">Create New Exam</Link>
+            <Link href={`/dashboard/${userRole}?tab=create`}>Create New Exam</Link>
           </Button>
         </div>
 
@@ -371,6 +387,11 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                           <CardTitle>{exam.title}</CardTitle>
                           <CardDescription>
                             {exam.subject} - {typeof exam.class === 'object' ? `${exam.class.name} ${exam.class.section}` : exam.class}
+                            {typeof exam.createdBy === 'object' && exam.createdBy.role === 'principal' && (
+                              <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
+                                Created by Principal
+                              </span>
+                            )}
                           </CardDescription>
                         </div>
                         <Badge variant={exam.status === 'active' ? 'default' : 'secondary'}>
@@ -409,6 +430,8 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                             variant="outline"
                             size="sm"
                             onClick={() => handleEditExam(exam)}
+                            // Disable edit button for exams created by principals if the user is a teacher
+                            disabled={typeof exam.createdBy === 'object' && exam.createdBy.role === 'principal' && userRole === 'teacher'}
                           >
                             <Edit className="h-4 w-4 mr-2" />
                             Edit Exam
@@ -417,6 +440,8 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                             variant="destructive"
                             size="sm"
                             onClick={() => handleDeleteExam(exam._id)}
+                            // Disable delete button for exams created by principals if the user is a teacher
+                            disabled={typeof exam.createdBy === 'object' && exam.createdBy.role === 'principal' && userRole === 'teacher'}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
@@ -440,6 +465,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
         onSuccess={handleQuestionSuccess}
         existingQuestions={questionsData?.data || []}
         initialTab="existing"
+        userRole={userRole as "teacher" | "principal"} // Pass the user role to restrict functionality
       />
 
       {/* Edit Exam Dialog */}

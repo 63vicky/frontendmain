@@ -13,15 +13,15 @@ const {
 // Protect all routes
 router.use(authenticate);
 
-// Teacher routes
+// Teacher and Principal routes
 router.route('/')
-  .post(authorize('teacher'), createExam)
-  .get(authorize('teacher'), getTeacherExams);
+  .post(authorize('teacher', 'principal'), createExam)
+  .get(authorize('teacher', 'principal'), getTeacherExams);
 
 router.route('/:id')
   .get(getExam)  // Allow all authenticated users to view exam details
-  .put(authorize('teacher'), updateExam)
-  .delete(authorize('teacher'), deleteExam);
+  .put(authorize('teacher', 'principal'), updateExam)
+  .delete(authorize('teacher', 'principal'), deleteExam);
 
 // Class exams route - accessible by all authenticated users
 router.route('/class/:classId')

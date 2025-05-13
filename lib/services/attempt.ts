@@ -111,6 +111,7 @@ export const attemptService = {
       questionId: string;
       selectedOption: string;
       isDescriptive?: boolean;
+      skipped?: boolean;
     }>,
     questionTimings?: Array<{
       questionId: string;
@@ -243,7 +244,7 @@ export const attemptService = {
       // Step 2: Try to fetch from ExamAttempt API
       try {
         console.log('Fetching from ExamAttempt API...');
-        
+
 
         // If we found a Result earlier, try to find the corresponding ExamAttempt
         let attemptData;

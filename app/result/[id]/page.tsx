@@ -7,15 +7,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Trophy, Award, Star, Clock, BarChart2, BookOpen, Download, Printer, Share2, Loader2, Info, AlertTriangle, ArrowUturnLeft } from "lucide-react"
+import { Trophy, Award, Star, Clock, BarChart2, BookOpen, Download, Printer, Share2, Loader2, Info, AlertTriangle } from "lucide-react"
 import { Suspense, useState, useEffect, use } from "react"
 import * as React from "react"
 import { resultService } from "@/lib/services/result-service"
-import { Result, Exam, Question } from "@/lib/types"
+import { Result, Exam } from "@/lib/types"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 import QuestionAnalysis from "@/components/question-analysis"
-import { authService } from "@/lib/services/auth"
 import { attemptService, ComprehensiveAttemptData } from "@/lib/services/attempt"
 
 export default function ResultPage({ params }: { params: { id: string } }) {
@@ -274,7 +273,7 @@ function ResultContent({ params }: { params: { id: string } }) {
               Tech Anubhavi
             </Link>
             <nav className="space-x-4">
-              <Link href="/dashboard/student" className="hover:underline">
+              <Link href="/dashboard/teacher" className="hover:underline">
                 Dashboard
               </Link>
             </nav>
@@ -290,10 +289,10 @@ function ResultContent({ params }: { params: { id: string } }) {
             </p>
             <div className="space-y-3">
               <Button asChild className="w-full bg-indigo-600 hover:bg-indigo-700">
-                <Link href="/dashboard/student?tab=results">View All Results</Link>
+                <Link href="/dashboard/teacher?tab=results">View All Results</Link>
               </Button>
               <Button asChild className="w-full" variant="outline">
-                <Link href="/dashboard/student">Back to Dashboard</Link>
+                <Link href="/dashboard/teacher">Back to Dashboard</Link>
               </Button>
               <Button variant="outline" className="w-full" onClick={() => window.location.reload()}>
                 Try Again
@@ -773,7 +772,7 @@ function ResultContent({ params }: { params: { id: string } }) {
             Tech Anubhavi
           </Link>
           <nav className="space-x-4">
-            <Link href="/dashboard/student" className="hover:underline">
+            <Link href="/dashboard/teacher" className="hover:underline">
               Dashboard
             </Link>
           </nav>
@@ -974,6 +973,8 @@ function ResultContent({ params }: { params: { id: string } }) {
                           <p className="text-sm text-muted-foreground">Highest Score</p>
                           <p className="font-medium">
                             {score}%
+                            {/* Note: In a real implementation, we would fetch the highest score across all attempts */}
+                            {/* and display it here with the attempt number */}
                           </p>
                         </div>
                         <div>

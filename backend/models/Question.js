@@ -8,8 +8,11 @@ const questionSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['multiple-choice', 'short-answer', 'descriptive'],
     required: [true, 'Question type is required']
+  },
+  category: {
+    type: String,
+    trim: true
   },
   subject: {
     type: String,
@@ -18,7 +21,6 @@ const questionSchema = new mongoose.Schema({
   },
   className: {
     type: String,
-    required: [true, 'Class is required'],
     trim: true
   },
   chapter: {
@@ -75,6 +77,7 @@ questionSchema.index({ text: 'text' });
 questionSchema.index({ subject: 1 });
 questionSchema.index({ className: 1 });
 questionSchema.index({ type: 1 });
+questionSchema.index({ category: 1 }); // Add index for category
 questionSchema.index({ difficulty: 1 });
 questionSchema.index({ createdBy: 1 });
 questionSchema.index({ status: 1 });

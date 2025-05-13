@@ -34,6 +34,7 @@ interface QuestionDialogProps {
   onSuccess: () => void
   existingQuestions?: Question[]
   initialTab?: "create" | "existing"
+  userRole?: "teacher" | "principal" // Add userRole prop to determine permissions
 }
 
 export function QuestionDialog({
@@ -42,13 +43,22 @@ export function QuestionDialog({
   onOpenChange,
   onSuccess,
   existingQuestions = [],
-  initialTab = "create"
+  initialTab = "create",
+  userRole = "teacher" // Default to teacher role
 }: QuestionDialogProps) {
   const [loading, setLoading] = useState(false)
-  const [questionType, setQuestionType] = useState<'multiple-choice' | 'short-answer' | 'descriptive'>('multiple-choice')
+  // Define allowed question types as a constant to ensure consistency
+  const ALLOWED_QUESTION_TYPES = ['multiple-choice', 'short-answer', 'descriptive', 'custom'] as const
+  type QuestionType = typeof ALLOWED_QUESTION_TYPES[number]
+
+  const [questionType, setQuestionType] = useState<QuestionType>('multiple-choice')
+  const [customType, setCustomType] = useState("")
+  const [category, setCategory] = useState("")
+  const [isCustomType, setIsCustomType] = useState(false)
   const [activeTab, setActiveTab] = useState<"create" | "existing">(initialTab)
   const [searchQuery, setSearchQuery] = useState("")
   const [addedQuestions, setAddedQuestions] = useState<string[]>([])
+  const [selectedQuestions, setSelectedQuestions] = useState<string[]>([])
 
   const { toast } = useToast()
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
@@ -93,6 +103,7 @@ export function QuestionDialog({
     if (!open) {
       setSearchQuery("")
       setAddedQuestions([])
+      setSelectedQuestions([])
     } else {
       // Set the active tab to initialTab when the dialog opens
       setActiveTab(initialTab)
@@ -175,7 +186,23 @@ export function QuestionDialog({
     try {
       // Handle correct answer based on question type
       let correctAnswer;
-      const questionType = formData.get('question-type') as string;
+      let submittedType = formData.get('question-type') as string;
+
+      // Handle custom question type
+      if (submittedType === 'custom') {
+        if (!customType.trim()) {
+          throw new Error('Please enter a custom question type.');
+        }
+        submittedType = customType.trim();
+      } else {
+        // Validate that the question type is one of the allowed types
+        if (!ALLOWED_QUESTION_TYPES.includes(submittedType as QuestionType)) {
+          throw new Error('Invalid question type. Please select a valid question type.');
+        }
+      }
+
+      // Use the submitted type
+      const questionType = submittedType;
 
       if (questionType === 'multiple-choice') {
         // For multiple choice, collect all checked options
@@ -185,16 +212,18 @@ export function QuestionDialog({
         }));
 
         // Filter out empty options and get correct answers
-        const validOptions = options.filter(opt => opt.option);
+        const validOptions = options.filter(opt => opt.option && opt.option.trim() !== "");
         correctAnswer = validOptions
           .filter(opt => opt.isCorrect)
           .map(opt => opt.option);
+
+        console.log("Selected correct answers:", correctAnswer); // For debugging
 
         if (correctAnswer.length === 0) {
           throw new Error('Please select at least one correct answer');
         }
       } else {
-        // For short answer and descriptive, use the answer field
+        // For short answer, descriptive, and custom types, use the answer field
         correctAnswer = formData.get('answer');
         if (!correctAnswer) {
           throw new Error('Please provide a correct answer');
@@ -210,7 +239,7 @@ export function QuestionDialog({
         },
         body: JSON.stringify({
           text: formData.get('question'),
-          type: questionType,
+          type: questionType, // This can be a standard type or a custom type
           options: questionType === 'multiple-choice'
             ? ["A", "B", "C", "D"].map(option => formData.get(`option-${option}`)).filter(Boolean)
             : [],
@@ -221,7 +250,10 @@ export function QuestionDialog({
           subject: formData.get('subject'),
           className: formData.get('class'),
           chapter: formData.get('chapter'),
-          tags: formData.get('tags')?.toString().split(',').map(tag => tag.trim()) || []
+          tags: formData.get('tags')?.toString().split(',').map(tag => tag.trim()) || [],
+          examId: exam._id, // Ensure the question is associated with the exam
+          // Include category for custom question types
+          category: isCustomType ? formData.get('category') : undefined
         })
       });
 
@@ -328,6 +360,85 @@ export function QuestionDialog({
     }
   }
 
+  const handleBulkAddQuestions = async () => {
+    if (!exam || selectedQuestions.length === 0) return
+
+    setLoading(true)
+    try {
+      // Create an array of promises for each question to add
+      const addPromises = selectedQuestions.map(questionId =>
+        fetch(`${API_URL}/questions/${questionId}/add-to-exam`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+          },
+          body: JSON.stringify({
+            examId: exam._id
+          })
+        })
+      );
+
+      // Wait for all promises to resolve
+      const responses = await Promise.all(addPromises);
+
+      // Check if any requests failed
+      const failedRequests = responses.filter(response => !response.ok).length;
+
+      if (failedRequests > 0) {
+        throw new Error(`Failed to add ${failedRequests} questions`);
+      }
+
+      toast({
+        title: 'Success',
+        description: `Added ${selectedQuestions.length} questions successfully`
+      })
+
+      // Add all selected questions to the addedQuestions state
+      setAddedQuestions(prev => [...prev, ...selectedQuestions]);
+
+      // Clear selection
+      setSelectedQuestions([]);
+
+      // Call onSuccess to refresh the questions list but don't close the dialog
+      onSuccess()
+
+      // Refresh the questions list to update the UI
+      if (questionsData) {
+        refetchQuestions()
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Failed to add questions',
+        variant: 'destructive'
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleToggleSelectAll = (checked: boolean) => {
+    if (checked) {
+      // Select all questions that aren't already added to the exam
+      const availableQuestions = filteredQuestions
+        .filter(q => !isQuestionAdded(q))
+        .map(q => q._id);
+      setSelectedQuestions(availableQuestions);
+    } else {
+      // Deselect all
+      setSelectedQuestions([]);
+    }
+  }
+
+  const handleToggleSelectQuestion = (questionId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedQuestions(prev => [...prev, questionId]);
+    } else {
+      setSelectedQuestions(prev => prev.filter(id => id !== questionId));
+    }
+  }
+
   const getDifficultyColor = (difficulty: string) => {
     switch (difficulty) {
       case "Easy":
@@ -354,12 +465,16 @@ export function QuestionDialog({
     }
   }
 
-  // Force set the active tab to "existing" when the dialog opens
+  // Set the active tab when the dialog opens
   useEffect(() => {
     if (open) {
-      setActiveTab("existing");
+      // Use the initialTab value for both teachers and principals
+      setActiveTab(initialTab);
+
+      // Clear selected questions when dialog opens
+      setSelectedQuestions([]);
     }
-  }, [open]);
+  }, [open, initialTab]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -371,6 +486,7 @@ export function QuestionDialog({
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "create" | "existing")}>
           <TabsList className="grid w-full grid-cols-2">
+            {/* Show Create New tab for both teachers and principals */}
             <TabsTrigger value="create">Create New</TabsTrigger>
             <TabsTrigger value="existing">Add Existing</TabsTrigger>
           </TabsList>
@@ -396,21 +512,7 @@ export function QuestionDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="class">Class</Label>
-                  <Select name="class" defaultValue={typeof exam?.class === 'string' ? exam.class : ''}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls} value={cls}>
-                          {cls}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -440,8 +542,27 @@ export function QuestionDialog({
                 <Label htmlFor="question-type">Question Type</Label>
                 <Select
                   name="question-type"
-                  defaultValue="multiple-choice"
-                  onValueChange={(value) => setQuestionType(value as 'multiple-choice' | 'short-answer' | 'descriptive')}
+                  value={isCustomType ? "custom" : questionType}
+                  onValueChange={(value) => {
+                    if (value === "custom") {
+                      setIsCustomType(true);
+                      // Keep the current type until custom type is entered
+                    } else {
+                      setIsCustomType(false);
+                      // Validate that the value is one of the allowed types
+                      if (ALLOWED_QUESTION_TYPES.includes(value as QuestionType)) {
+                        setQuestionType(value as QuestionType);
+                      } else {
+                        // If not, default to multiple-choice and show an error
+                        setQuestionType('multiple-choice');
+                        toast({
+                          title: "Invalid Question Type",
+                          description: "The selected question type is not valid. Using Multiple Choice instead.",
+                          variant: "destructive"
+                        });
+                      }
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select question type" />
@@ -450,8 +571,25 @@ export function QuestionDialog({
                     <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
                     <SelectItem value="short-answer">Short Answer</SelectItem>
                     <SelectItem value="descriptive">Descriptive</SelectItem>
+                    <SelectItem value="custom">Custom Type</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {isCustomType && (
+                  <div className="mt-2 space-y-2">
+                    <Input
+                      placeholder="Enter custom question type"
+                      value={customType}
+                      onChange={(e) => {
+                        setCustomType(e.target.value);
+                      }}
+                    />
+
+                    
+
+                    
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="question">Question</Label>
@@ -469,8 +607,11 @@ export function QuestionDialog({
                   <div className="space-y-2">
                     {["A", "B", "C", "D"].map((option) => (
                       <div key={option} className="flex items-center gap-2">
-                        <Checkbox id={`option-${option}`} name={`correct-${option}`} />
-                        <Label htmlFor={`option-${option}`} className="flex-1">
+                        <Checkbox
+                          id={`correct-${option}`}
+                          name={`correct-${option}`}
+                        />
+                        <Label htmlFor={`correct-${option}`} className="flex-1">
                           <Input
                             name={`option-${option}`}
                             placeholder={`Option ${option}`}
@@ -553,14 +694,34 @@ export function QuestionDialog({
 
           <TabsContent value="existing">
             <div className="space-y-4">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search questions..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-8"
-                />
+              <div className="flex items-center justify-between gap-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search questions..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8"
+                  />
+                </div>
+
+                <Button
+                  onClick={handleBulkAddQuestions}
+                  disabled={loading || selectedQuestions.length === 0}
+                  className="whitespace-nowrap"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Selected ({selectedQuestions.length})
+                    </>
+                  )}
+                </Button>
               </div>
 
               {loadingQuestions ? (
@@ -574,63 +735,90 @@ export function QuestionDialog({
                   <p className="text-sm">Try adjusting your search criteria</p>
                 </div>
               ) : (
-                <div className="space-y-4 max-h-[500px] overflow-y-auto">
-                  {filteredQuestions.map((question) => {
-                    const isAdded = isQuestionAdded(question);
-                    return (
-                      <div
-                        key={question._id}
-                        className="p-4 border rounded-lg space-y-2"
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="space-y-1">
-                            <p className="font-medium">{question.text}</p>
-                            <div className="flex flex-wrap gap-2">
-                              <span className={`px-2 py-1 rounded-full text-xs ${getTypeColor(question.type)}`}>
-                                {question.type}
-                              </span>
-                              <span className={`px-2 py-1 rounded-full text-xs ${getDifficultyColor(question.difficulty || 'Medium')}`}>
-                                {question.difficulty || 'Medium'}
-                              </span>
-                              <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
-                                {question.points} points
-                              </span>
-                              {isAdded && (
-                                <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
-                                  Added
-                                </span>
+                <>
+                  <div className="flex items-center p-2 border rounded-lg bg-muted/20">
+                    <Checkbox
+                      id="select-all"
+                      checked={selectedQuestions.length > 0 &&
+                        selectedQuestions.length === filteredQuestions.filter(q => !isQuestionAdded(q)).length}
+                      onCheckedChange={handleToggleSelectAll}
+                    />
+                    <Label htmlFor="select-all" className="ml-2 cursor-pointer">
+                      Select All ({filteredQuestions.filter(q => !isQuestionAdded(q)).length} available)
+                    </Label>
+                  </div>
+
+                  <div className="space-y-4 max-h-[450px] overflow-y-auto">
+                    {filteredQuestions.map((question) => {
+                      const isAdded = isQuestionAdded(question);
+                      const isSelected = selectedQuestions.includes(question._id);
+                      return (
+                        <div
+                          key={question._id}
+                          className="p-4 border rounded-lg space-y-2"
+                        >
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-start gap-2">
+                              {!isAdded && (
+                                <Checkbox
+                                  id={`select-${question._id}`}
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) =>
+                                    handleToggleSelectQuestion(question._id, checked as boolean)
+                                  }
+                                  className="mt-1"
+                                />
                               )}
+                              <div className="space-y-1">
+                                <p className="font-medium">{question.text}</p>
+                                <div className="flex flex-wrap gap-2">
+                                  <span className={`px-2 py-1 rounded-full text-xs ${getTypeColor(question.type)}`}>
+                                    {question.type}
+                                  </span>
+                                  <span className={`px-2 py-1 rounded-full text-xs ${getDifficultyColor(question.difficulty || 'Medium')}`}>
+                                    {question.difficulty || 'Medium'}
+                                  </span>
+                                  <span className="px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                                    {question.points} points
+                                  </span>
+                                  {isAdded && (
+                                    <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                                      Added
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddExistingQuestion(question)}
+                              disabled={loading || isAdded}
+                            >
+                              {isAdded ? (
+                                'Added'
+                              ) : (
+                                <>
+                                  <Plus className="h-4 w-4 mr-2" />
+                                  Add
+                                </>
+                              )}
+                            </Button>
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleAddExistingQuestion(question)}
-                            disabled={loading || isAdded}
-                          >
-                            {isAdded ? (
-                              'Added'
-                            ) : (
-                              <>
-                                <Plus className="h-4 w-4 mr-2" />
-                                Add
-                              </>
-                            )}
-                          </Button>
+                          {question.options && question.options.length > 0 && (
+                            <div className="text-sm">
+                              <p className="font-medium">Options:</p>
+                              <ul className="list-disc list-inside">
+                                {question.options.map((option, index) => (
+                                  <li key={index}>{typeof option === 'string' ? option : option.text}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
-                        {question.options && question.options.length > 0 && (
-                          <div className="text-sm">
-                            <p className="font-medium">Options:</p>
-                            <ul className="list-disc list-inside">
-                              {question.options.map((option, index) => (
-                                <li key={index}>{typeof option === 'string' ? option : option.text}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </div>
           </TabsContent>

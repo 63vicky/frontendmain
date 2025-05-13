@@ -108,12 +108,17 @@ export const resultService = {
       if (!response.ok) {
         // If the error is because the student has reached maximum attempts
         if (response.status === 400 && data.message && data.message.includes('Maximum attempts reached')) {
-          console.log('Maximum attempts reached, returning existing results');
+          console.log('Maximum attempts reached, returning best result');
 
-          // Find the result with the highest score
+          // If the backend already calculated the best result, use it
+          if (data.bestResult) {
+            return data.bestResult;
+          }
+
+          // Otherwise, find the result with the highest score
           if (data.existingResults && data.existingResults.length > 0) {
             const bestResult = data.existingResults.reduce((best, current) =>
-              current.marks > best.marks ? current : best, data.existingResults[0]);
+              (current.marks || 0) > (best.marks || 0) ? current : best, data.existingResults[0]);
 
             return bestResult;
           }

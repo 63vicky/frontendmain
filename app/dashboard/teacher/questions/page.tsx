@@ -264,7 +264,7 @@ export default function TeacherQuestionsPage() {
       })
       setSelectedQuestions([])
       setSelectAll(false)
-      
+
     } catch (error) {
       toast({
         title: "Error",
@@ -332,7 +332,7 @@ export default function TeacherQuestionsPage() {
       })
       setShowDeleteDialog(false)
       setSelectedQuestion(null)
-      
+
     } catch (error) {
       toast({
         title: "Error",
@@ -387,7 +387,7 @@ export default function TeacherQuestionsPage() {
         tags: [],
       })
 
-      
+
     } catch (error) {
       toast({
         title: "Error",
@@ -541,24 +541,7 @@ export default function TeacherQuestionsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="class">Class</Label>
-                      <Select
-                        value={formData.className}
-                        onValueChange={(value) => setFormData({ ...formData, className: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select class" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {allClasses.map((cls) => (
-                            <SelectItem key={cls._id} value={cls.name}>
-                              {cls.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -934,24 +917,7 @@ export default function TeacherQuestionsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="class">Class</Label>
-                <Select
-                  value={formData.className}
-                  onValueChange={(value) => setFormData({ ...formData, className: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select class" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {classes.map((cls) => (
-                      <SelectItem key={cls} value={cls}>
-                        {cls}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

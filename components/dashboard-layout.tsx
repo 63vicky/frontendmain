@@ -11,7 +11,6 @@ import { AuthCheck } from "@/components/auth-check"
 import {
   LayoutDashboard,
   Users,
-  GraduationCap,
   FileText,
   ChevronRight,
   Menu,
@@ -106,30 +105,35 @@ function DashboardContent({
           icon: <Users className="h-5 w-5" />,
         },
         {
-          name: "Students Management",
-          href: `/dashboard/${role}?tab=students`,
-          icon: <GraduationCap className="h-5 w-5" />,
-        },
-        {
           name: "Exam Analytics",
           href: `/dashboard/${role}?tab=exams`,
           icon: <BarChart3 className="h-5 w-5" />,
+        },
+        {
+          name: "Manage Exams",
+          href: `/dashboard/${role}?tab=manage-exams`,
+          icon: <FileText className="h-5 w-5" />,
+        },
+        {
+          name: "Question Bank",
+          href: `/dashboard/${role}/questions`,
+          icon: <BookOpen className="h-5 w-5" />,
         },
         // {
         //   name: "Advanced Analytics",
         //   href: `/dashboard/${role}/analytics`,
         //   icon: <BarChart3 className="h-5 w-5" />,
         // },
-        {
-          name: "Subject Management",
-          href: `/dashboard/${role}/subjects`,
-          icon: <BookOpenCheck className="h-5 w-5" />,
-        },
-        {
-          name: "Class Management",
-          href: `/dashboard/${role}/classes`,
-          icon: <School className="h-5 w-5" />,
-        },
+        // {
+        //   name: "Subject Management",
+        //   href: `/dashboard/${role}/subjects`,
+        //   icon: <BookOpenCheck className="h-5 w-5" />,
+        // },
+        // {
+        //   name: "Class Management",
+        //   href: `/dashboard/${role}/classes`,
+        //   icon: <School className="h-5 w-5" />,
+        // },
         {
           name: "Results",
           href: `/dashboard/${role}/results`,
@@ -165,21 +169,22 @@ function DashboardContent({
           href: `/dashboard/${role}?tab=create`,
           icon: <PlusCircle className="h-5 w-5" />,
         },
-        {
-          name: "My Students",
-          href: `/dashboard/${role}?tab=students`,
-          icon: <GraduationCap className="h-5 w-5" />,
-        },
+
         {
           name: "Question Bank",
           href: `/dashboard/${role}/questions`,
           icon: <BookOpen className="h-5 w-5" />,
         },
         {
-          name: "Class Management",
-          href: `/dashboard/${role}/classes`,
-          icon: <School className="h-5 w-5" />,
+          name: "Take Exams",
+          href: `/dashboard/${role}?tab=available-exams`,
+          icon: <BookOpenCheck className="h-5 w-5" />,
         },
+        // {
+        //   name: "Class Management",
+        //   href: `/dashboard/${role}/classes`,
+        //   icon: <School className="h-5 w-5" />,
+        // },
         {
           name: "Results",
           href: `/dashboard/${role}/results`,
@@ -198,30 +203,8 @@ function DashboardContent({
         baseItems[1],
       ]
     } else {
-      return [
-        ...baseItems.slice(0, 1),
-        {
-          name: "Available Exams",
-          href: `/dashboard/${role}?tab=exams`,
-          icon: <BookOpen className="h-5 w-5" />,
-        },
-        {
-          name: "My Results",
-          href: `/dashboard/${role}?tab=results`,
-          icon: <FileText className="h-5 w-5" />,
-        },
-        {
-          name: "My Classes",
-          href: `/dashboard/${role}/classes`,
-          icon: <School className="h-5 w-5" />,
-        },
-        {
-          name: "Notifications",
-          href: `/dashboard/${role}/notifications`,
-          icon: <Bell className="h-5 w-5" />,
-        },
-        baseItems[1],
-      ]
+      // Return empty array for student role as we're removing student functionality
+      return []
     }
   }
 

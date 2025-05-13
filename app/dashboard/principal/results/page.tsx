@@ -61,8 +61,8 @@ export default function ResultsManagement() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedExam, setSelectedExam] = useState<any>(null)
-  const [examStudentResults, setExamStudentResults] = useState<any[]>([])
-  const [loadingStudentResults, setLoadingStudentResults] = useState(false)
+  const [examTeacherResults, setExamTeacherResults] = useState<any[]>([])
+  const [loadingTeacherResults, setLoadingTeacherResults] = useState(false)
   const { toast } = useToast()
 
   // Fetch results data
@@ -166,7 +166,7 @@ export default function ResultsManagement() {
   const handleViewExamResults = async (exam: any) => {
     try {
       setSelectedExam(exam);
-      setLoadingStudentResults(true);
+      setLoadingTeacherResults(true);
 
       // Fetch all results for this exam
       const examId = exam.id;
@@ -176,10 +176,10 @@ export default function ResultsManagement() {
 
       // Process results for display
       const processedResults = results.map((result: any) => {
-        // Get student name
-        const studentName = result.studentId && typeof result.studentId === 'object'
-          ? result.studentId.name || 'Unknown Student'
-          : 'Unknown Student';
+        // Get teacher name
+        const teacherName = result.studentId && typeof result.studentId === 'object'
+          ? result.studentId.name || 'Unknown Teacher'
+          : 'Unknown Teacher';
 
         // Calculate score
         const score = result.marks || 0;
@@ -194,8 +194,8 @@ export default function ResultsManagement() {
 
         return {
           id: result._id,
-          studentId: typeof result.studentId === 'object' ? result.studentId._id : result.studentId,
-          student: studentName,
+          teacherId: typeof result.studentId === 'object' ? result.studentId._id : result.studentId,
+          teacher: teacherName,
           score,
           totalMarks,
           percentage,
@@ -207,16 +207,16 @@ export default function ResultsManagement() {
         };
       });
 
-      setExamStudentResults(processedResults);
+      setExamTeacherResults(processedResults);
     } catch (error) {
       console.error("Error fetching exam results:", error);
       toast({
         title: "Error",
-        description: "Failed to load student results for this exam.",
+        description: "Failed to load teacher results for this exam.",
         variant: "destructive"
       });
     } finally {
-      setLoadingStudentResults(false);
+      setLoadingTeacherResults(false);
     }
   };
 
@@ -337,7 +337,7 @@ export default function ResultsManagement() {
                         <TableHead>Class</TableHead>
                         <TableHead>Subject</TableHead>
                         <TableHead>Date</TableHead>
-                        <TableHead>Students</TableHead>
+                        <TableHead>Teachers</TableHead>
                         <TableHead>Avg. Score</TableHead>
                         <TableHead>Highest</TableHead>
                         <TableHead>Lowest</TableHead>
@@ -479,7 +479,7 @@ export default function ResultsManagement() {
                             <TableHead>Exam Name</TableHead>
                             <TableHead>Subject</TableHead>
                             <TableHead>Date</TableHead>
-                            <TableHead>Students</TableHead>
+                            <TableHead>Teachers</TableHead>
                             <TableHead>Avg. Score</TableHead>
                             <TableHead>Highest</TableHead>
                             <TableHead>Lowest</TableHead>
@@ -699,11 +699,11 @@ export default function ResultsManagement() {
       {/* Exam Results Dialog */}
       <Dialog open={selectedExam !== null} onOpenChange={(open) => !open && setSelectedExam(null)}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          
+
           <DialogHeader>
             <div className="flex justify-between items-center">
               <DialogTitle className="text-xl">
-                {selectedExam?.name} - Student Results
+                {selectedExam?.name} - Results
               </DialogTitle>
             </div>
             <DialogDescription>
@@ -711,21 +711,21 @@ export default function ResultsManagement() {
             </DialogDescription>
           </DialogHeader>
 
-          {loadingStudentResults ? (
+          {loadingTeacherResults ? (
             <div className="flex justify-center items-center py-8">
               <Loader2 className="h-8 w-8 animate-spin text-indigo-500" />
-              <span className="ml-2 text-muted-foreground">Loading student results...</span>
+              <span className="ml-2 text-muted-foreground">Loading teacher results...</span>
             </div>
-          ) : examStudentResults.length === 0 ? (
+          ) : examTeacherResults.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No student results found for this exam
+              No teacher results found for this exam
             </div>
           ) : (
             <div className="mt-4">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Student</TableHead>
+                    <TableHead>Teacher</TableHead>
                     <TableHead>Score</TableHead>
                     <TableHead>Percentage</TableHead>
                     <TableHead>Status</TableHead>
@@ -734,9 +734,11 @@ export default function ResultsManagement() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {examStudentResults.map((result) => (
+                  {examTeacherResults.map((result) => (
                     <TableRow key={result.id}>
-                      <TableCell className="font-medium">{result.student}</TableCell>
+                      <TableCell className="font-medium">
+                        {result.teacher}
+                      </TableCell>
                       <TableCell>
                         {result.score}/{result.totalMarks}
                       </TableCell>

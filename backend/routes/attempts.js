@@ -6,8 +6,8 @@ const Exam = require('../models/Exam_updated'); // Use the updated Exam model
 const Question = require('../models/Question');
 const Result = require('../models/Result'); // Add Result model for creating results
 
-// Get all attempts for the current student, organized by exam ID
-router.get('/student', authenticate, authorize('student'), async (req, res) => {
+// Get all attempts for the current student/teacher, organized by exam ID
+router.get('/student', authenticate, authorize('student', 'teacher'), async (req, res) => {
   try {
     console.log('Fetching attempts for student:', req.user._id);
 
@@ -70,8 +70,8 @@ router.get('/student', authenticate, authorize('student'), async (req, res) => {
   }
 });
 
-// Start new exam attempt (Student only)
-router.post('/', authenticate, authorize('student'), async (req, res) => {
+// Start new exam attempt (Student or Teacher)
+router.post('/', authenticate, authorize('student', 'teacher'), async (req, res) => {
   try {
     const { examId } = req.body;
 
@@ -81,29 +81,32 @@ router.post('/', authenticate, authorize('student'), async (req, res) => {
       return res.status(400).json({ message: 'Exam not available' });
     }
 
-    // Check if the exam's class matches the student's class
-    const examClassId = typeof exam.class === 'object' ? exam.class.toString() : exam.class.toString();
-    const studentClassId = req.user.class.toString();
+    // For students: Check if the exam's class matches the student's class
+    // For teachers: Skip class check as they can take any exam
+    if (req.user.role === 'student') {
+      const examClassId = typeof exam.class === 'object' ? exam.class.toString() : exam.class.toString();
+      const studentClassId = req.user.class.toString();
 
-    if (examClassId !== studentClassId) {
-      console.log(`Class mismatch: exam class ${examClassId}, student class ${studentClassId}`);
-      return res.status(400).json({ message: 'Exam not available for your class' });
+      if (examClassId !== studentClassId) {
+        console.log(`Class mismatch: exam class ${examClassId}, student class ${studentClassId}`);
+        return res.status(400).json({ message: 'Exam not available for your class' });
+      }
     }
 
-    // Check if student has reached max attempts
-    // Count the number of attempts for this student and exam
-    const studentAttempts = await ExamAttempt.countDocuments({
+    // Check if user has reached max attempts
+    // Count the number of attempts for this user and exam
+    const userAttempts = await ExamAttempt.countDocuments({
       examId,
       studentId: req.user._id
     });
 
-    console.log(`Student ${req.user._id} has ${studentAttempts} attempts for exam ${examId}`);
+    console.log(`User ${req.user._id} has ${userAttempts} attempts for exam ${examId}`);
 
-    // Check if student has reached max attempts
-    if (exam.attempts && studentAttempts >= exam.attempts.max) {
+    // Check if user has reached max attempts (only for students, teachers can take unlimited attempts)
+    if (req.user.role === 'student' && exam.attempts && userAttempts >= exam.attempts.max) {
       return res.status(400).json({
         message: 'Maximum attempts reached',
-        currentAttempts: studentAttempts,
+        currentAttempts: userAttempts,
         maxAttempts: exam.attempts.max
       });
     }
@@ -143,8 +146,8 @@ router.post('/', authenticate, authorize('student'), async (req, res) => {
   }
 });
 
-// Submit exam attempt (Student only)
-router.post('/:id/submit', authenticate, authorize('student'), async (req, res) => {
+// Submit exam attempt (Student or Teacher)
+router.post('/:id/submit', authenticate, authorize('student', 'teacher'), async (req, res) => {
   try {
     const { answers, questionTimings, timeSpent } = req.body;
     const attempt = await ExamAttempt.findById(req.params.id);
@@ -218,14 +221,21 @@ router.post('/:id/submit', authenticate, authorize('student'), async (req, res) 
       // Either from the question type or from the flag sent by the frontend
       const isDescriptiveQuestion = question.type === 'descriptive' || answer.isDescriptive;
 
+      // Check if this is a skipped question
+      const isSkipped = answer.skipped || answer.selectedOption === "SKIPPED";
+
+      // For skipped questions, we still need to provide a valid selectedOption
+      // but we'll mark it as incorrect
       answerResults.push({
         questionId: answer.questionId,
-        selectedOption: answer.selectedOption,
+        // Ensure we have a valid selectedOption even for skipped questions
+        selectedOption: isSkipped ? "SKIPPED" : answer.selectedOption,
         // Store descriptive answers in the dedicated field
         descriptiveAnswer: isDescriptiveQuestion ? answer.selectedOption : '',
-        isCorrect,
+        // Skipped questions are always incorrect
+        isCorrect: isSkipped ? false : isCorrect,
         timeSpent: timeSpentOnQuestion,
-        points
+        points: isSkipped ? 0 : points
       });
     }
 

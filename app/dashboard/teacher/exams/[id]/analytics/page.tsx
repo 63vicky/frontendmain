@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useParams, useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -22,14 +22,16 @@ export default function ExamAnalyticsPage() {
   const [error, setError] = useState<string | null>(null)
   const [examData, setExamData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState("questions")
-  
-  const examId = params.id as string
+
+  // Unwrap params using use() before accessing properties
+  const unwrappedParams = use(params as any) as { id: string }
+  const examId = unwrappedParams.id
 
   useEffect(() => {
     const fetchExamData = async () => {
       try {
         setLoading(true)
-        
+
         const response = await fetch(`${API_URL}/exams/${examId}`, {
           credentials: 'include',
           headers: {
@@ -37,11 +39,11 @@ export default function ExamAnalyticsPage() {
             'Authorization': `Bearer ${localStorage.getItem('token')}`
           }
         })
-        
+
         if (!response.ok) {
           throw new Error('Failed to fetch exam data')
         }
-        
+
         const data = await response.json()
         setExamData(data.data || data)
       } catch (error) {
@@ -56,7 +58,7 @@ export default function ExamAnalyticsPage() {
         setLoading(false)
       }
     }
-    
+
     fetchExamData()
   }, [examId, toast])
 
@@ -117,8 +119,8 @@ export default function ExamAnalyticsPage() {
   }
 
   // Get class name
-  const className = typeof examData.class === 'object' 
-    ? `${examData.class.name} ${examData.class.section}` 
+  const className = typeof examData.class === 'object'
+    ? `${examData.class.name} ${examData.class.section}`
     : examData.class
 
   return (
@@ -175,9 +177,9 @@ export default function ExamAnalyticsPage() {
                 {examData.questions?.length || 0}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {examData.questions?.length > 0 
-                  ? `${examData.questions.filter((q: any) => q.difficulty === 'Easy').length} Easy, 
-                     ${examData.questions.filter((q: any) => q.difficulty === 'Medium').length} Medium, 
+                {examData.questions?.length > 0
+                  ? `${examData.questions.filter((q: any) => q.difficulty === 'Easy').length} Easy,
+                     ${examData.questions.filter((q: any) => q.difficulty === 'Medium').length} Medium,
                      ${examData.questions.filter((q: any) => q.difficulty === 'Hard').length} Hard`
                   : 'No questions available'}
               </p>
@@ -203,8 +205,8 @@ export default function ExamAnalyticsPage() {
                 {examData.attempts?.current || 0}/{examData.attempts?.max || 0}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {examData.attempts?.current > 0 
-                  ? `${examData.attempts.current} attempts made so far` 
+                {examData.attempts?.current > 0
+                  ? `${examData.attempts.current} attempts made so far`
                   : 'No attempts yet'}
               </p>
             </div>
@@ -237,8 +239,8 @@ export default function ExamAnalyticsPage() {
             <CardContent>
               <div className="flex items-center justify-center h-64">
                 <p className="text-slate-500">
-                  {examData.attempts?.current > 0 
-                    ? 'Performance analysis will be available soon' 
+                  {examData.attempts?.current > 0
+                    ? 'Performance analysis will be available soon'
                     : 'No attempts have been made for this exam yet'}
                 </p>
               </div>
