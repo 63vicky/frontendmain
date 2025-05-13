@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, use } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -24,11 +24,10 @@ export default function BulkUploadDetails() {
   const [filteredRecords, setFilteredRecords] = useState<any[]>([])
   const [records, setRecords] = useState<any[]>([])
 
-  // Unwrap params using use() before accessing properties
-  const unwrappedParams = use(params as any) as { id: string; role: string }
-  const uploadId = unwrappedParams.id
+  // Access params directly
+  const uploadId = params.id as string
   // Extract role for use in the DashboardLayout component
-  const role = unwrappedParams.role as "principal" | "teacher" | "student" | "admin"
+  const role = params.role as "principal" | "teacher" | "student" | "admin"
 
   useEffect(() => {
     const fetchBulkUploadDetails = async () => {
