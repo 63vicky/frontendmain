@@ -252,7 +252,12 @@ export const attemptService = {
           // Try to find the ExamAttempt that corresponds to this Result
           try {
             // First try to find by examId and studentId with matching attempt number
-            const attemptsResponse = await api.get<any>(`/attempts/student/${resultData.studentId}/exam/${resultData.examId}`);
+            // Ensure we're using string IDs, not objects
+            const studentId = typeof resultData.studentId === 'object' ? resultData.studentId._id : resultData.studentId;
+            const examId = typeof resultData.examId === 'object' ? resultData.examId._id : resultData.examId;
+
+            console.log('Fetching attempts with studentId:', studentId, 'and examId:', examId);
+            const attemptsResponse = await api.get<any>(`/attempts/student/${studentId}/exam/${examId}`);
             const attempts = attemptsResponse.data;
 
             if (Array.isArray(attempts) && attempts.length > 0) {
@@ -324,7 +329,9 @@ export const attemptService = {
         // Step 2: Fetch the exam details to get title, subject, etc.
         try {
           console.log('Fetching exam details...');
-          const examResponse = await api.get<any>(`/exams/${attemptData.examId}`);
+          // Ensure we're using a string ID, not an object
+          const examId = typeof attemptData.examId === 'object' ? attemptData.examId._id : attemptData.examId;
+          const examResponse = await api.get<any>(`/exams/${examId}`);
           const examData = examResponse.data;
           const examDetails = examData.data || examData;
           console.log('Exam details received:', examDetails);

@@ -28,6 +28,17 @@ exports.getAllQuestions = async (req, res) => {
       filter.$text = { $search: search };
     }
 
+    // If user is a teacher, only show questions created by teachers
+    // This ensures principals' questions don't show up in teacher login
+    if (req.user.role === 'teacher') {
+      // Find all users with teacher role
+      const teachers = await mongoose.model('User').find({ role: 'teacher' }, '_id');
+      const teacherIds = teachers.map(teacher => teacher._id);
+
+      // Only show questions created by teachers
+      filter.createdBy = { $in: teacherIds };
+    }
+
     const questions = await Question.find(filter)
       .sort({ createdAt: -1 })
       .populate('createdBy', 'name email');
@@ -71,9 +82,6 @@ exports.createQuestion = async (req, res) => {
       tags,
       category
     } = req.body;
-
-    // Define standard question types
-    const STANDARD_QUESTION_TYPES = ['multiple-choice', 'short-answer', 'descriptive'];
 
     // Allow custom question types - only validate multiple-choice specifically
 
@@ -137,9 +145,6 @@ exports.updateQuestion = async (req, res) => {
       return res.status(403).json({ success: false, message: 'Not authorized to update this question' });
     }
 
-    // Define standard question types
-    const STANDARD_QUESTION_TYPES = ['multiple-choice', 'short-answer', 'descriptive'];
-
     // Allow custom question types - only validate multiple-choice specifically
 
     // Validate question type specific requirements
@@ -185,21 +190,30 @@ exports.deleteQuestion = async (req, res) => {
     }
 
     // Check if user has permission to delete
-    if (question.createdBy.toString() !== req.user._id.toString()) {
+    if (question.createdBy.toString() !== req.user._id.toString() && req.user.role !== 'principal') {
       return res.status(403).json({ success: false, message: 'Not authorized to delete this question' });
     }
 
-    // Check if question is used in any exams
+    // If question is used in exams, remove it from all exams first
     if (question.examIds && question.examIds.length > 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Cannot delete question as it is used in one or more exams'
-      });
+      console.log(`Removing question ${question._id} from ${question.examIds.length} exams`);
+
+      // Find all exams that contain this question
+      const exams = await Exam.find({ _id: { $in: question.examIds } });
+
+      // Remove the question from each exam's questions array
+      for (const exam of exams) {
+        exam.questions = exam.questions.filter(q => q.toString() !== question._id.toString());
+        await exam.save();
+        console.log(`Removed question from exam ${exam._id}`);
+      }
     }
 
+    // Now delete the question
     await Question.findByIdAndDelete(req.params.id);
     res.json({ success: true, message: 'Question deleted successfully' });
   } catch (error) {
+    console.error('Error deleting question:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };
@@ -278,7 +292,20 @@ exports.removeFromExam = async (req, res) => {
 // Get unique subjects
 exports.getSubjects = async (req, res) => {
   try {
-    const subjects = await Question.distinct('subject', { status: 'Active' });
+    // Create filter object
+    const filter = { status: 'Active' };
+
+    // If user is a teacher, only show subjects from questions created by teachers
+    if (req.user.role === 'teacher') {
+      // Find all users with teacher role
+      const teachers = await mongoose.model('User').find({ role: 'teacher' }, '_id');
+      const teacherIds = teachers.map(teacher => teacher._id);
+
+      // Only include subjects from questions created by teachers
+      filter.createdBy = { $in: teacherIds };
+    }
+
+    const subjects = await Question.distinct('subject', filter);
     res.json({ success: true, data: subjects });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -288,7 +315,23 @@ exports.getSubjects = async (req, res) => {
 // Get unique classes
 exports.getClasses = async (req, res) => {
   try {
-    const classes = await Question.distinct('className', { status: 'Active' });
+    // Create filter object
+    const filter = { status: 'Active' };
+
+    // If user is a teacher, only show classes from questions created by teachers
+    if (req.user.role === 'teacher') {
+      // Find all users with teacher role
+      const teachers = await mongoose.model('User').find({ role: 'teacher' }, '_id');
+      const teacherIds = teachers.map(teacher => teacher._id);
+
+      // Only include classes from questions created by teachers
+      filter.createdBy = { $in: teacherIds };
+    }
+
+    const classes = (await Question.distinct('className', filter))
+      .filter(c => c !== null)
+      .filter(c => c !== '');
+
     res.json({ success: true, data: classes });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -299,7 +342,21 @@ exports.getClasses = async (req, res) => {
 exports.getChapters = async (req, res) => {
   try {
     const { subject } = req.params;
-    const chapters = await Question.distinct('chapter', { subject, status: 'Active' });
+
+    // Create filter object
+    const filter = { subject, status: 'Active' };
+
+    // If user is a teacher, only show chapters from questions created by teachers
+    if (req.user.role === 'teacher') {
+      // Find all users with teacher role
+      const teachers = await mongoose.model('User').find({ role: 'teacher' }, '_id');
+      const teacherIds = teachers.map(teacher => teacher._id);
+
+      // Only include chapters from questions created by teachers
+      filter.createdBy = { $in: teacherIds };
+    }
+
+    const chapters = await Question.distinct('chapter', filter);
     res.json({ success: true, data: chapters });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
@@ -309,7 +366,20 @@ exports.getChapters = async (req, res) => {
 // Get unique categories
 exports.getCategories = async (req, res) => {
   try {
-    const categories = await Question.distinct('category', { status: 'Active' });
+    // Create filter object
+    const filter = { status: 'Active' };
+
+    // If user is a teacher, only show categories from questions created by teachers
+    if (req.user.role === 'teacher') {
+      // Find all users with teacher role
+      const teachers = await mongoose.model('User').find({ role: 'teacher' }, '_id');
+      const teacherIds = teachers.map(teacher => teacher._id);
+
+      // Only include categories from questions created by teachers
+      filter.createdBy = { $in: teacherIds };
+    }
+
+    const categories = await Question.distinct('category', filter);
     // Filter out null or empty categories
     const validCategories = categories.filter(category => category && category.trim() !== '');
     res.json({ success: true, data: validCategories });

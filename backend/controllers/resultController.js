@@ -381,8 +381,8 @@ const submitStudentResult = async (req, res) => {
 
     const attemptCount = studentResults.length;
 
-    // Check if student has reached maximum attempts
-    if (exam.attempts && attemptCount >= exam.attempts.max) {
+    // Check if student has reached maximum attempts (only for students, teachers can take unlimited attempts)
+    if (req.user.role === 'student' && exam.attempts && attemptCount >= exam.attempts.max) {
       // Find the best result to return
       let bestResult = null;
       let bestScore = -1;

@@ -140,6 +140,18 @@ router.post('/', authenticate, authorize('student', 'teacher'), async (req, res)
     });
 
     await attempt.save();
+
+    // Increment the attempts.current counter in the exam
+    try {
+      // Increment the attempts.current counter
+      exam.attempts.current += 1;
+      await exam.save();
+      console.log(`Incremented attempts.current to ${exam.attempts.current} for exam ${examId}`);
+    } catch (updateError) {
+      console.error('Error updating exam attempts counter:', updateError);
+      // Continue with the response even if the counter update fails
+    }
+
     res.status(201).json(attempt);
   } catch (error) {
     res.status(400).json({ message: 'Error starting exam attempt', error: error.message });

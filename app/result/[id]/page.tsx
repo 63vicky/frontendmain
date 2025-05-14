@@ -333,7 +333,7 @@ function ResultContent({ params }: { params: { id: string } }) {
   // Handle both string ID and object with _id
   const examId = typeof result?.examId === 'string'
     ? result?.examId
-    : (result?.examId as any)?._id || ""
+    : (result?.examId as any)?._id || (result?.examId as any) || ""
 
   // Calculate time spent in minutes and seconds
   const calculateTimeSpent = () => {
@@ -1298,7 +1298,9 @@ function ResultContent({ params }: { params: { id: string } }) {
           </Tabs>
 
           <div className="flex justify-center gap-4 mt-8">
-            {mockAnalysis.attemptNumber < mockAnalysis.maxAttempts ? (
+            {/* For teachers, always show the Retake Exam button regardless of attempts */}
+            {/* For students, only show if they haven't reached max attempts */}
+            {authService.getCurrentUser()?.role === 'teacher' || mockAnalysis.attemptNumber < mockAnalysis.maxAttempts ? (
               <Button
                 asChild
                 className="btn-gradient"

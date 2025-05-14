@@ -6,6 +6,7 @@ import { api, getSubjects } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Dialog,
@@ -19,7 +20,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import DashboardLayout from "@/components/dashboard-layout"
-import { Search, Eye, Download, Loader2, Plus, FileUp } from "lucide-react"
+import { Search, Eye, Download, Loader2, Plus, FileUp, Edit, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Badge } from "@/components/ui/badge"
@@ -64,6 +65,23 @@ export default function PrincipalQuestionBank() {
   const [selectAll, setSelectAll] = useState(false)
   const [viewQuestionData, setViewQuestionData] = useState<Question | null>(null)
   const [showViewDialog, setShowViewDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
+  const [formData, setFormData] = useState({
+    text: "",
+    type: "multiple-choice" as "multiple-choice" | "short-answer" | "descriptive",
+    subject: "",
+    className: "",
+    chapter: "",
+    difficulty: "Medium" as "Easy" | "Medium" | "Hard",
+    options: ["", "", "", ""],
+    correctAnswer: [] as string[],
+    points: 1,
+    time: 30,
+    tags: [] as string[],
+  })
+  const [checkedOptions, setCheckedOptions] = useState<boolean[]>([false, false, false, false])
   const { toast } = useToast()
 
   useEffect(() => {
@@ -169,9 +187,242 @@ export default function PrincipalQuestionBank() {
     }
   }
 
+  const handleBulkDelete = async () => {
+    try {
+      setLoading(true)
+
+      // Delete questions one by one to handle potential errors
+      const results = await Promise.allSettled(selectedQuestions.map((id) => api.questions.delete(id)))
+
+      // Count successful and failed deletions
+      const successful = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+
+      // Show appropriate toast message
+      if (successful > 0 && failed === 0) {
+        toast({
+          title: "Success",
+          description: `${successful} questions deleted successfully`,
+        })
+      } else if (successful > 0 && failed > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${successful} questions deleted successfully, ${failed} failed`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete questions",
+          variant: "destructive",
+        })
+      }
+
+      setSelectedQuestions([])
+      setSelectAll(false)
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete questions",
+        variant: "destructive",
+      })
+    } finally {
+      fetchData()
+      setLoading(false)
+    }
+  }
+
   const handleViewQuestion = (question: Question) => {
     setViewQuestionData(question)
     setShowViewDialog(true)
+  }
+
+  // Function to handle option changes
+  const handleOptionChange = (index: number, value: string) => {
+    const newOptions = [...formData.options];
+    newOptions[index] = value;
+    setFormData({ ...formData, options: newOptions });
+
+    // Update correctAnswer if this option was previously selected
+    if (checkedOptions[index]) {
+      const newCorrectAnswer = [...formData.correctAnswer];
+      // Remove the old value if it exists
+      const oldValue = formData.options[index];
+      const oldIndex = newCorrectAnswer.indexOf(oldValue);
+      if (oldIndex !== -1) {
+        newCorrectAnswer.splice(oldIndex, 1);
+      }
+      // Add the new value if it's not empty
+      if (value && !newCorrectAnswer.includes(value)) {
+        newCorrectAnswer.push(value);
+      }
+      setFormData(prev => ({ ...prev, correctAnswer: newCorrectAnswer }));
+    }
+  };
+
+  // Function to handle correct answer changes
+  const handleCorrectAnswerChange = (index: number, checked: boolean) => {
+    // Update the checked state
+    const newCheckedOptions = [...checkedOptions];
+    newCheckedOptions[index] = checked;
+    setCheckedOptions(newCheckedOptions);
+
+    // Update the correctAnswer array
+    const optionValue = formData.options[index];
+    let newCorrectAnswer = [...formData.correctAnswer];
+
+    if (checked) {
+      // Only add if not already included and not empty
+      if (optionValue && !newCorrectAnswer.includes(optionValue)) {
+        newCorrectAnswer.push(optionValue);
+      }
+    } else {
+      // Remove this specific option
+      const optionIndex = newCorrectAnswer.indexOf(optionValue);
+      if (optionIndex !== -1) {
+        newCorrectAnswer.splice(optionIndex, 1);
+      }
+    }
+
+    // Update state with the new array
+    setFormData(prevData => ({
+      ...prevData,
+      correctAnswer: newCorrectAnswer
+    }));
+  };
+
+  // Function to check if an option is selected
+  const isOptionSelected = (index: number) => {
+    return checkedOptions[index];
+  };
+
+  // Reset form data
+  const resetFormData = () => {
+    setFormData({
+      text: "",
+      type: "multiple-choice" as "multiple-choice" | "short-answer" | "descriptive",
+      subject: "",
+      className: "",
+      chapter: "",
+      difficulty: "Medium" as "Easy" | "Medium" | "Hard",
+      options: ["", "", "", ""],
+      correctAnswer: [],
+      points: 1,
+      time: 30,
+      tags: [],
+    });
+    setCheckedOptions([false, false, false, false]);
+    setSelectedQuestion(null);
+  };
+
+  // Handle edit question
+  const handleEdit = (question: Question) => {
+    setSelectedQuestion(question);
+
+    // Create a deep copy of the options array to avoid reference issues
+    const optionsCopy = question.options ? [...question.options] : ["", "", "", ""];
+
+    // Ensure correctAnswer is always an array
+    let correctAnswerCopy: string[] = [];
+    if (Array.isArray(question.correctAnswer)) {
+      correctAnswerCopy = [...question.correctAnswer];
+    } else if (question.correctAnswer) {
+      correctAnswerCopy = [question.correctAnswer];
+    }
+
+    // Set the checked options based on the correctAnswer
+    const newCheckedOptions = optionsCopy.map((option) =>
+      correctAnswerCopy.includes(option)
+    );
+
+    setCheckedOptions(newCheckedOptions);
+
+    setFormData({
+      text: question.text,
+      type: question.type,
+      subject: question.subject,
+      className: question.className,
+      chapter: question.chapter || "",
+      difficulty: question.difficulty,
+      options: optionsCopy,
+      correctAnswer: correctAnswerCopy,
+      points: question.points,
+      time: question.time,
+      tags: question.tags ? [...question.tags] : [],
+    });
+
+    setShowEditDialog(true);
+  };
+
+  // Handle delete question
+  const handleDelete = (question: Question) => {
+    setSelectedQuestion(question)
+    setShowDeleteDialog(true)
+  }
+
+  // Handle delete confirmation
+  const handleDeleteConfirm = async () => {
+    if (!selectedQuestion) return
+
+    try {
+      setLoading(true)
+      await api.questions.delete(selectedQuestion._id)
+      toast({
+        title: "Success",
+        description: "Question deleted successfully",
+      })
+      setShowDeleteDialog(false)
+      setSelectedQuestion(null)
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete question",
+        variant: "destructive",
+      })
+    } finally {
+      fetchData()
+      setLoading(false)
+    }
+  }
+
+  // Handle form submission (for both add and edit)
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    try {
+      setLoading(true)
+      const data = {
+        ...formData,
+        correctAnswer: formData.type === "multiple-choice" ? formData.correctAnswer : formData.correctAnswer[0],
+      }
+
+      if (selectedQuestion) {
+        await api.questions.update(selectedQuestion._id, data)
+        toast({
+          title: "Success",
+          description: "Question updated successfully",
+        })
+      } else {
+        await api.questions.create(data)
+        toast({
+          title: "Success",
+          description: "Question created successfully",
+        })
+      }
+
+      setShowEditDialog(false)
+      resetFormData()
+
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save question",
+        variant: "destructive",
+      })
+    } finally {
+      fetchData()
+      setLoading(false)
+    }
   }
 
   const getTypeLabel = (type: string) => {
@@ -252,7 +503,19 @@ export default function PrincipalQuestionBank() {
               </SelectContent>
             </Select>
 
-           
+                <Select value={selectedClass} onValueChange={setSelectedClass}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Class" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Classes</SelectItem>
+                {classes.map((className) => (
+                  <SelectItem key={className} value={className}>
+                    {className}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
 
             <Select value={selectedType} onValueChange={setSelectedType}>
               <SelectTrigger className="w-[150px]">
@@ -295,6 +558,13 @@ export default function PrincipalQuestionBank() {
                 )}
               </SelectContent>
             </Select>
+
+            {selectedQuestions.length > 0 && (
+              <Button variant="destructive" onClick={handleBulkDelete} className="ml-auto flex items-center gap-2">
+                <Trash2 className="h-4 w-4" />
+                Delete Selected ({selectedQuestions.length})
+              </Button>
+            )}
           </div>
         </div>
 
@@ -308,7 +578,7 @@ export default function PrincipalQuestionBank() {
                   </TableHead>
                   <TableHead className="w-[40%]">Question</TableHead>
                   <TableHead>Subject</TableHead>
-                  
+                  <TableHead>Class</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Difficulty</TableHead>
                   <TableHead>Created By</TableHead>
@@ -348,7 +618,7 @@ export default function PrincipalQuestionBank() {
                         <div className="line-clamp-2">{question.text}</div>
                       </TableCell>
                       <TableCell>{question.subject}</TableCell>
-                      
+                      <TableCell>{question.className}</TableCell>
                       <TableCell>{getTypeLabel(question.type)}</TableCell>
                       <TableCell>
                         <Badge
@@ -367,14 +637,32 @@ export default function PrincipalQuestionBank() {
                       <TableCell>{question.createdBy?.name || "Unknown"}</TableCell>
                       <TableCell>{formatDate(question.createdAt)}</TableCell>
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleViewQuestion(question)}
-                          aria-label={`View question ${question.text}`}
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleViewQuestion(question)}
+                            aria-label={`View question ${question.text}`}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleEdit(question)}
+                            aria-label={`Edit question ${question.text}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleDelete(question)}
+                            aria-label={`Delete question ${question.text}`}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -482,6 +770,245 @@ export default function PrincipalQuestionBank() {
           )}
           <DialogFooter>
             <Button onClick={() => setShowViewDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Question Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={(open) => {
+        setShowEditDialog(open);
+        if (!open) {
+          resetFormData();
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Question</DialogTitle>
+            <DialogDescription>Update the question details.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject</Label>
+                <Select
+                  value={formData.subject}
+                  onValueChange={(value) => setFormData({ ...formData, subject: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((subject) => (
+                      <SelectItem key={subject} value={subject}>
+                        {subject}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="class">Class</Label>
+                <Select
+                  value={formData.className}
+                  onValueChange={(value) => setFormData({ ...formData, className: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((className) => (
+                      <SelectItem key={className} value={className}>
+                        {className}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="chapter">Chapter/Topic</Label>
+                <Input
+                  id="chapter"
+                  value={formData.chapter}
+                  onChange={(e) => setFormData({ ...formData, chapter: e.target.value })}
+                  placeholder="Enter chapter or topic"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="difficulty">Difficulty Level</Label>
+                <Select
+                  value={formData.difficulty}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, difficulty: value as "Easy" | "Medium" | "Hard" })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select difficulty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Easy">Easy</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="Hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="question-type">Question Type</Label>
+              <Select
+                value={formData.type}
+                onValueChange={(value) =>
+                  setFormData({ ...formData, type: value as "multiple-choice" | "short-answer" | "descriptive" })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select question type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
+                  <SelectItem value="short-answer">Short Answer</SelectItem>
+                  <SelectItem value="descriptive">Descriptive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="question">Question</Label>
+              <Textarea
+                id="question"
+                value={formData.text}
+                onChange={(e) => setFormData({ ...formData, text: e.target.value })}
+                placeholder="Enter your question here"
+                rows={3}
+              />
+            </div>
+            {formData.type === "multiple-choice" && (
+              <div className="space-y-2">
+                <Label>Options (for Multiple Choice)</Label>
+                <div className="space-y-2">
+                  {["A", "B", "C", "D"].map((option, index) => (
+                    <div key={option} className="flex items-center gap-2">
+                      <Checkbox
+                        id={`edit-option-${option}`}
+                        name={`edit-correct-${option}`}
+                        checked={isOptionSelected(index)}
+                        onCheckedChange={(checked) => {
+                          handleCorrectAnswerChange(index, checked as boolean);
+                        }}
+                      />
+                      <Label htmlFor={`edit-option-${option}`} className="flex-1">
+                        <Input
+                          value={formData.options[index]}
+                          onChange={(e) => handleOptionChange(index, e.target.value)}
+                          placeholder={`Option ${option}`}
+                        />
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">Check the correct answer(s)</p>
+              </div>
+            )}
+            {formData.type === "short-answer" && (
+              <div className="space-y-2">
+                <Label htmlFor="answer">Correct Answer</Label>
+                <Input
+                  id="answer"
+                  value={formData.correctAnswer[0] || ""}
+                  onChange={(e) => setFormData({ ...formData, correctAnswer: [e.target.value] })}
+                  placeholder="Enter the correct answer"
+                />
+              </div>
+            )}
+            {formData.type === "descriptive" && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-descriptive-answer">Correct Answer</Label>
+                <Textarea
+                  id="edit-descriptive-answer"
+                  value={formData.correctAnswer[0] || ""}
+                  onChange={(e) => setFormData({ ...formData, correctAnswer: [e.target.value] })}
+                  placeholder="Enter the model answer for this descriptive question"
+                  rows={3}
+                />
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="time">Time Limit</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="time"
+                  type="number"
+                  min="5"
+                  value={formData.time}
+                  onChange={(e) => setFormData({ ...formData, time: Number.parseInt(e.target.value) })}
+                  className="w-20"
+                />
+                <span>seconds</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Default: 30s for MCQ, 10s for SCQ</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="marks">Marks</Label>
+                <Input
+                  id="marks"
+                  type="number"
+                  min="1"
+                  value={formData.points}
+                  onChange={(e) => setFormData({ ...formData, points: Number.parseInt(e.target.value) })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="tags">Tags (Optional)</Label>
+                <Input
+                  id="tags"
+                  value={formData.tags.join(", ")}
+                  onChange={(e) =>
+                    setFormData({ ...formData, tags: e.target.value.split(",").map((tag) => tag.trim()) })
+                  }
+                  placeholder="e.g., important, exam"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save Changes"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Question</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this question? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteConfirm} disabled={loading}>
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                "Delete"
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

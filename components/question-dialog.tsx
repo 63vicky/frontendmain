@@ -513,6 +513,22 @@ export function QuestionDialog({
                   </Select>
                 </div>
                 
+                <div className="space-y-2">
+                  <Label htmlFor="class">Class</Label>
+                  <Select name="class" defaultValue={exam?.class as string}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((className) => (
+                        <SelectItem key={className} value={className}>
+                          {className}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

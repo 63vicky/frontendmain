@@ -215,7 +215,24 @@ export default function AddQuestion() {
                     </SelectContent>
                   </Select>
                 </div>
-
+                      <div className="space-y-2">
+                  <Label htmlFor="class">Class</Label>
+                  <Select
+                    value={formData.className}
+                    onValueChange={(value) => setFormData({ ...formData, className: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classes.map((className) => (
+                        <SelectItem key={className} value={className}>
+                          {className}
+                        </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
               </div>
 

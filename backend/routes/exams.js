@@ -141,4 +141,34 @@ router.patch('/:id/status', authenticate, authorize('teacher'), async (req, res)
   }
 });
 
+// Update exam attempts (used to increment the attempts counter)
+router.put('/:id/attempts', authenticate, async (req, res) => {
+  try {
+    const { attempts } = req.body;
+
+    // Find the exam
+    const exam = await Exam.findById(req.params.id);
+
+    if (!exam) {
+      return res.status(404).json({ message: 'Exam not found' });
+    }
+
+    // Update the attempts field
+    if (attempts) {
+      if (attempts.current !== undefined) {
+        exam.attempts.current = attempts.current;
+      }
+      if (attempts.max !== undefined) {
+        exam.attempts.max = attempts.max;
+      }
+    }
+
+    await exam.save();
+    res.json(exam);
+  } catch (error) {
+    console.error('Error updating exam attempts:', error);
+    res.status(400).json({ message: 'Error updating exam attempts', error: error.message });
+  }
+});
+
 module.exports = router;

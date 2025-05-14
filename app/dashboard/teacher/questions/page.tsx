@@ -26,6 +26,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import DashboardLayout from "@/components/dashboard-layout"
 import { Search, Plus, Edit, Trash2, FileUp, Download, Loader2 } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useRouter } from "next/navigation"
 
 interface Question {
   _id: string
@@ -50,6 +51,7 @@ interface Question {
 }
 
 export default function TeacherQuestionsPage() {
+  const router = useRouter()
   const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedSubject, setSelectedSubject] = useState("all")
@@ -257,11 +259,33 @@ export default function TeacherQuestionsPage() {
   const handleBulkDelete = async () => {
     try {
       setLoading(true)
-      await Promise.all(selectedQuestions.map((id) => api.questions.delete(id)))
-      toast({
-        title: "Success",
-        description: `${selectedQuestions.length} questions deleted successfully`,
-      })
+
+      // Delete questions one by one to handle potential errors
+      const results = await Promise.allSettled(selectedQuestions.map((id) => api.questions.delete(id)))
+
+      // Count successful and failed deletions
+      const successful = results.filter(r => r.status === 'fulfilled').length
+      const failed = results.filter(r => r.status === 'rejected').length
+
+      // Show appropriate toast message
+      if (successful > 0 && failed === 0) {
+        toast({
+          title: "Success",
+          description: `${successful} questions deleted successfully`,
+        })
+      } else if (successful > 0 && failed > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${successful} questions deleted successfully, ${failed} failed`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete questions",
+          variant: "destructive",
+        })
+      }
+
       setSelectedQuestions([])
       setSelectAll(false)
 
@@ -495,6 +519,7 @@ export default function TeacherQuestionsPage() {
     )
   }
 
+
   return (
     <DashboardLayout role="teacher">
       <div className="flex flex-col gap-4">
@@ -541,7 +566,24 @@ export default function TeacherQuestionsPage() {
                         </SelectContent>
                       </Select>
                     </div>
-
+                    <div className="space-y-2">
+                      <Label htmlFor="class">Class</Label>
+                      <Select
+                        value={formData.className}
+                        onValueChange={(value) => setFormData({ ...formData, className: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select class" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {classes.map((className) => (
+                            <SelectItem key={className} value={className}>
+                              {className}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
@@ -705,9 +747,9 @@ export default function TeacherQuestionsPage() {
                 </form>
               </DialogContent>
             </Dialog>
-            <Button variant="outline" className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => router.push('/dashboard/teacher/bulk-upload?tab=questions')} className="flex items-center gap-2">
               <FileUp className="h-4 w-4" />
-              <span>Import Questions</span>
+              <span>Bulk Upload</span>
             </Button>
             <Button variant="outline" className="flex items-center gap-2">
               <Download className="h-4 w-4" />
@@ -917,7 +959,24 @@ export default function TeacherQuestionsPage() {
                   </SelectContent>
                 </Select>
               </div>
-
+              <div className="space-y-2">
+                <Label htmlFor="class">Class</Label>
+                <Select
+                  value={formData.className}
+                  onValueChange={(value) => setFormData({ ...formData, className: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select class" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classes.map((className) => (
+                      <SelectItem key={className} value={className}>
+                        {className}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
