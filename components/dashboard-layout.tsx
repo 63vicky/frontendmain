@@ -124,16 +124,16 @@ function DashboardContent({
         //   href: `/dashboard/${role}/analytics`,
         //   icon: <BarChart3 className="h-5 w-5" />,
         // },
-        // {
-        //   name: "Subject Management",
-        //   href: `/dashboard/${role}/subjects`,
-        //   icon: <BookOpenCheck className="h-5 w-5" />,
-        // },
-        // {
-        //   name: "Class Management",
-        //   href: `/dashboard/${role}/classes`,
-        //   icon: <School className="h-5 w-5" />,
-        // },
+        {
+          name: "Subject Management",
+          href: `/dashboard/${role}/subjects`,
+          icon: <BookOpenCheck className="h-5 w-5" />,
+        },
+        {
+          name: "Class Management",
+          href: `/dashboard/${role}/classes`,
+          icon: <School className="h-5 w-5" />,
+        },
         {
           name: "Results",
           href: `/dashboard/${role}/results`,
@@ -180,11 +180,11 @@ function DashboardContent({
           href: `/dashboard/${role}?tab=available-exams`,
           icon: <BookOpenCheck className="h-5 w-5" />,
         },
-        // {
-        //   name: "Class Management",
-        //   href: `/dashboard/${role}/classes`,
-        //   icon: <School className="h-5 w-5" />,
-        // },
+        {
+          name: "Class Management",
+          href: `/dashboard/${role}/classes`,
+          icon: <School className="h-5 w-5" />,
+        },
         {
           name: "Results",
           href: `/dashboard/${role}/results`,

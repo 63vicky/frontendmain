@@ -739,7 +739,7 @@ const handleEditDialogClose = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        className="flex-1"
+                        className="flex-1 hidden"
                         onClick={() => {
                           setSelectedClass(cls)
                           setIsAddStudentDialogOpen(true)

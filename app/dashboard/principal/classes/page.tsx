@@ -259,7 +259,7 @@ export default function ClassManagement() {
                 <TableRow>
                   <TableHead>Class Name</TableHead>
                   <TableHead>Section</TableHead>
-                  <TableHead>Students</TableHead>
+                  {/* <TableHead>Students</TableHead> */}
                   <TableHead>Subject</TableHead>
                   <TableHead>Schedule</TableHead>
                   <TableHead>Status</TableHead>
@@ -278,12 +278,12 @@ export default function ClassManagement() {
                     <TableRow key={cls._id}>
                       <TableCell className="font-medium">{cls.name}</TableCell>
                       <TableCell>{cls.section}</TableCell>
-                      <TableCell>
+                      {/* <TableCell>
                         <div className="flex items-center">
                           <Users className="h-4 w-4 mr-2 text-indigo-500" />
                           {cls.students}
                         </div>
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell>{cls?.subject?.name || "-"}</TableCell>
                       <TableCell>{cls?.schedule || "-"}</TableCell>
                       <TableCell>
