@@ -387,7 +387,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                           <CardTitle>{exam.title}</CardTitle>
                           <CardDescription>
                             {exam.subject} - {typeof exam.class === 'object' ? `${exam.class.name} ${exam.class.section}` : exam.class}
-                            {typeof exam.createdBy === 'object' && exam.createdBy.role === 'principal' && (
+                            {typeof exam.createdBy === 'object' && exam.createdBy?.role === 'principal' && (
                               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
                                 Created by Principal
                               </span>
