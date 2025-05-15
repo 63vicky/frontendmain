@@ -431,7 +431,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                             size="sm"
                             onClick={() => handleEditExam(exam)}
                             // Disable edit button for exams created by principals if the user is a teacher
-                            disabled={typeof exam.createdBy === 'object' && exam.createdBy.role === 'principal' && userRole === 'teacher'}
+                            disabled={typeof exam.createdBy === 'object' && exam.createdBy?.role === 'principal' && userRole === 'teacher'}
                           >
                             <Edit className="h-4 w-4 mr-2" />
                             Edit Exam
@@ -441,7 +441,7 @@ export default function ExamManagement({ onAddQuestion }: ExamManagementProps) {
                             size="sm"
                             onClick={() => handleDeleteExam(exam._id)}
                             // Disable delete button for exams created by principals if the user is a teacher
-                            disabled={typeof exam.createdBy === 'object' && exam.createdBy.role === 'principal' && userRole === 'teacher'}
+                            disabled={typeof exam.createdBy === 'object' && exam.createdBy?.role === 'principal' && userRole === 'teacher'}
                           >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Delete
